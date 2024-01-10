@@ -5,40 +5,20 @@ import sys
 import time
 import requests
 import pandas as pd
-from typing import List
+
+from patterns import *
 from bs4 import BeautifulSoup
 from datetime import datetime
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 
-headers_429 = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5)\
-                    AppleWebKit/537.36 (KHTML, like Gecko) Cafari/537.36'}
-
-# kasan, kmasn, info hang
-kasan_pattern = "Call Trace:\n([\s\S]*?)\n(RIP: 00|Allocated by task|===)"  # group 0
-kasan_pattern2 = "Call Trace:\n([\s\S]*?)\nAllocated by task"  # uaf
-kasan_pattern3 = "Call Trace:\n([\s\S]*?)\n==="  # kasan_null_ptr
-
-# group 0 and 1
-kernel_bug = "RIP: 0010:([\s\S]*?)Code[\s\S]*R13:[\s\S]*Call Trace:\n([\s\S]*?)\nModules linked in"
-
-# warn
-warn = "RIP: 0010:([\s\S]*?)RSP[\s\S]*?Call Trace:\n([\s\S]*?)(Kernel Offset|\<\/IRQ\>|RIP: 00|Modules linked in)"
-warn2 = "RIP: 0010:([\s\S]*?)Code[\s\S]*?Call Trace:\n([\s\S]*?)(Kernel Offset|\<\/IRQ\>|RIP: 00|Modules linked in)"
-warn3 = "RIP: 0010:([\s\S]*?)Code[\s\S]*?R13:.*?\n([\s\S]*?)(Kernel Offset|\<\/IRQ\>|RIP: 00|Modules linked in)"
-warn4 = "RIP: 0010:([\s\S]*?)RSP[\s\S]*?R13:.*?\n([\s\S]*?)(Kernel Offset|\<\/IRQ\>|RIP: 00|Modules linked in)"
-
-pattern2 = "R13:.*\n([\s\S]*?)Kernel Offset"
-pattern3 = "Call Trace:\n([\s\S]*?)\n(Modules linked in| ret_from_fork)"
-pattern4 = "RIP: 0010:([\s\S]*)Code[\s\S]*?Call Trace:\n([\s\S]*?)(Kernel Offset|entry_SYSCALL)"
-pattern5 = "Call Trace:\n([\s\S]*?)\nCode:"
-pattern6 = "Call Trace:\n([\s\S]*?)\nirq event stamp:"
-
 
 class CommitInfo:
-    def __init__(self, time, commit, console_log=None,
-                 console_log_link=None, report=None, report_link=None,
-                 syz_repro=None, syz_repro_link=None, call_trace=None, syscall_names=None):
+    def __init__(self, time, commit,
+                 console_log=None, console_log_link=None,
+                 report=None, report_link=None,
+                 syz_repro=None, syz_repro_link=None,
+                 call_trace=None, syscall_names=None):
         self.time = time
         self.commit = commit
 
@@ -55,6 +35,9 @@ class CommitInfo:
         self.syscall_names = syscall_names
 
     def parse_report(self, report_cell):
+        """
+        parse crash report from url
+        """
         if report_cell.find('a') is not None:
             report_link = "https://syzkaller.appspot.com" + report_cell.find('a')['href']
             time.sleep(1)
@@ -75,6 +58,9 @@ class CommitInfo:
             self.report = report_data
 
     def parse_console_log(self, console_cell):
+        """
+        just record console log link, we parse it later
+        """
         console_name = console_cell.get_text().strip()
         if console_name == 'strace log':
             console_link = ''
@@ -83,15 +69,49 @@ class CommitInfo:
             # TODO: currently we do not analyze console log
             console_link = "https://syzkaller.appspot.com" + console_cell.find('a')['href']
             # too large, temporarily not store
-            # time.sleep(1)
-            # response = requests.get(console_link, headers=headers_429)
-            # console_data = response.text
             console_data = None
 
         self.console_log_link = console_link
         self.console_log = console_data
 
+    def extract_console_data(self):
+        """
+        parse all syz programs recorded in execution log
+        """
+        if self.console_log_link == '':
+            return
+
+        time.sleep(1)
+        # response = requests.get(self.console_log_link, headers=headers_429)session = requests.Session()
+        session = requests.Session()
+        retry = Retry(connect=3, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+
+        response = session.get(self.console_log_link)
+        console_data = response.text
+
+        # extract executed programs
+        pattern = r"^\d{2}:\d{2}:\d{2}\s+executing program \d+:"
+        if not re.match(pattern, console_data):
+            return
+
+        pattern = r"(^\d{2}:\d{2}:\d{2}\s+executing program \d+:)"
+        segments = re.findall(pattern, console_data)
+        segments = [segment + console_data.split(segment, 1)[1].split('\n\n', 1)[0] + '\n\n' for segment in segments]
+        all_progs = []
+        for segment in segments:
+            syz_prog = segment.split('\n')[1:-1]
+            syscalls = self.parse_sysprog(syz_prog)
+            all_progs.append(syscalls)
+
+        self.console_log = '\n'.join(all_progs)
+
     def parse_syz_repro(self, syz_repro_cell):
+        """
+        parse the reproducer for the crash if exists
+        """
         if syz_repro_cell.find('a'):
             syz_repro_link = "https://syzkaller.appspot.com" + syz_repro_cell.find('a')['href']
             time.sleep(1)
@@ -113,13 +133,20 @@ class CommitInfo:
         self.syz_repro_link = syz_repro_link
 
     def parse_deeper(self):
-        if self.syz_repro:
-            self.syscall_names = self.parse_sysprog()
-        self.call_trace = self.parse_call_trace()
+        """
+        parse syscall names in reproducer and call trace from report
+        """
+        if self.syz_repro is not None:
+            self.syscall_names = self.parse_sysprog(self.syz_repro)
+        self.call_trace = self.parse_call_trace(self.report)
+        if self.call_trace == "":
+            self.call_trace = None
+            print('Warning: cannot find call trace', self.report_link)
 
-    def parse_sysprog(self):
+    @staticmethod
+    def parse_sysprog(syz_prog):
         syscall_names = []
-        for line in self.syz_repro.split('\n'):
+        for line in syz_prog.split('\n'):
             if line.startswith('#'):
                 continue
             idx1 = line.find('(')
@@ -130,7 +157,7 @@ class CommitInfo:
                 else:
                     name = line[:idx1]
                 syscall_names.append(name)
-        return syscall_names
+        return '-'.join(syscall_names)
 
     @staticmethod
     def get_call_trace(pattern, report):
@@ -145,9 +172,14 @@ class CommitInfo:
             return None
         return m
 
-    def parse_call_trace(self):
+    @staticmethod
+    def parse_back_trace(report):
+        if 'backtrace:' in report:
+            pass
+
+    @staticmethod
+    def parse_call_trace(report):
         # TODO: call trace is not parsed so far
-        report = self.report
         if 'Call trace:\n' in report:
             report = report.replace('Call trace:\n', 'Call Trace:\n')
 
@@ -156,55 +188,62 @@ class CommitInfo:
 
         if "WARNING" in report or "GPF" in report or "kernel BUG at" in report \
                 or "BUG: unable to handle" in report:
-            found = self.get_call_trace(warn, report)
+            found = CommitInfo.get_call_trace(warn, report)
             if found:
                 # print(found.group(1)+found.group(2))
                 return found.group(1) + found.group(2)
-            found = self.get_call_trace(warn2, report)
+            found = CommitInfo.get_call_trace(warn2, report)
             if found:
                 # print(found.group(1)+found.group(2))
                 return found.group(1) + found.group(2)
-            found = self.get_call_trace(warn3, report)
+            found = CommitInfo.get_call_trace(warn3, report)
             if found:
                 # print(found.group(1)+found.group(2))
                 return found.group(1) + found.group(2)
-            found = self.get_call_trace(warn4, report)
+            found = CommitInfo.get_call_trace(warn4, report)
             if found:
                 # print(found.group(1)+found.group(2))
                 return found.group(1) + found.group(2)
         elif "kasan" in report or 'kmsan' in report or 'ubsan' in report:
-            found = self.get_call_trace(kasan_pattern, report)
+            found = CommitInfo.get_call_trace(kasan_pattern, report)
             if found:
                 # print(found.group(1))
                 return found.group(1)
-            found = self.get_call_trace(kasan_pattern2, report)
+            found = CommitInfo.get_call_trace(kasan_pattern2, report)
             if found:
                 # print(found.group(1))
                 return found.group(1)
-            found = self.get_call_trace(kasan_pattern3, report)
+            found = CommitInfo.get_call_trace(kasan_pattern3, report)
 
         else:
             pass
-        found = self.get_call_trace(pattern3, report)
+        found = CommitInfo.get_call_trace(pattern3, report)
         if found:
             return found.group(1)
-        found = self.get_call_trace(pattern4, report)
+        found = CommitInfo.get_call_trace(pattern4, report)
         if found:
             return found.group(1) + found.group(2)
-        found = self.get_call_trace(pattern5, report)
+        found = CommitInfo.get_call_trace(pattern5, report)
         if found:
             return found.group(1)
 
-        found = self.get_call_trace(pattern6, report)
+        found = CommitInfo.get_call_trace(pattern6, report)
         if found:
             return found.group(1)
         else:
-            print('Warning: cannot find call trace', self.report_link)
             return ""
 
     def if_call_trace_from_syscall(self):
-        if ('do_syscall_x64' in self.call_trace or 'do_syscall_64' in self.call_trace or 'entry_SYSCALL_64' in self.call_trace) and \
-                ('__x64_sys_' in self.call_trace or '__sys_' in self.call_trace or 'SyS_' in self.call_trace):
+        """
+        verify if current call trace is related to syscall execution
+        """
+        if ('do_syscall_x64' in self.call_trace
+            or 'do_syscall_64' in self.call_trace
+            or 'entry_SYSCALL_64' in self.call_trace) \
+                and ('__x64_sys_' in self.call_trace
+                     or '__sys_' in self.call_trace
+                     or 'SyS_' in self.call_trace
+                     or 'ksys_' in self.call_trace):
             # crash is triggered when executing syscall on x86_64
             return True
         elif '__arm64_sys_' in self.call_trace or '__invoke_syscall' in self.call_trace:
@@ -213,13 +252,16 @@ class CommitInfo:
             return False
 
     def if_call_trace_from_forked(self):
+        """
+        verify if current call trace is related to background thread
+        """
         if 'ret_from_fork' in self.call_trace or 'process_one_work' in self.call_trace:
             return True
         else:
             return False
 
     def if_call_trace_from_exited(self):
-        if 'syscall_exit_to_user_mode' in self.call_trace or 'exit_to_user_mode':
+        if 'syscall_exit_to_user_mode' in self.call_trace or 'exit_to_user_mode' in self.call_trace:
             return True
         else:
             return False
@@ -240,10 +282,14 @@ class CrashInfo:
         self.crash_items = crash_items
         self.poc_interval = poc_interval
 
+
     def add_crash(self, new_crash):
         self.crash_items.append(new_crash)
 
     def get_first_repro_time(self):
+        """
+        compute the time interval from first time the crash occur and the time when a reproducer is available
+        """
         time_format = "%Y/%m/%d %H:%M"
         time_slots = [datetime.strptime(item.time, time_format) for item in self.crash_items]
         earliest_time_slot = min(time_slots)
@@ -258,11 +304,109 @@ class CrashInfo:
             time_interval = None
         self.poc_interval = time_interval
 
+    @staticmethod
+    def parse_call_trace_from_syscall(call_trace):
+        """
+        given a call trace, find the related syscall that trigger the crash
+        """
+        for line in reversed(call_trace.split('\n')):
+            line = line.strip()
+            if line.startswith('SyS_'):
+                crashed_syscall = line[4:line.find('+')]
+                return crashed_syscall
+            elif line.startswith('__x64_sys_'):
+                crashed_syscall = line[10:line.find('+')]
+                return crashed_syscall
+            elif line.startswith('__do_sys_'):
+                if '+' in line:
+                    crashed_syscall = line[9:line.find('+')]
+                else:
+                    crashed_syscall = line[9:line.find(' ')]
+                return crashed_syscall
+            elif line.startswith('__sys_'):
+                crashed_syscall = line[6:line.find('+')]
+                return crashed_syscall
+            elif line.startswith('__arm64_sys_'):
+                crashed_syscall = line[12:line.find('+')]
+                return crashed_syscall
+            elif line.startswith('__arm64_compat_sys_'):
+                crashed_syscall = line[19: line.find('+')]
+                return crashed_syscall
+            elif line.startswith('ksys_'):
+                if '+' in line:
+                    crashed_syscall = line[5:line.find('+')]
+                else:
+                    crashed_syscall = line[5:line.find(' ')]
+                return crashed_syscall
+        return ""
+
+    @staticmethod
+    def is_sub_array(array1, array2):
+        i = 0  # Pointer for array1
+        j = 0  # Pointer for array2
+
+        while i < len(array1) and j < len(array2):
+            if array1[i] == array2[j]:
+                i += 1
+            j += 1
+
+        return i == len(array1)  # Return True if all elements of array1 were found in array2
+
+    @staticmethod
+    def match_log_repro(log, repro) -> bool:
+        """
+        :param log:
+        :param repro:
+        :return:
+        """
+        repro_syscalls = repro.split('-')
+        for log_item in log.split('\n'):
+            log_item_syscalls = log_item.split('-')
+            if CrashInfo.is_sub_array(repro_syscalls, log_item_syscalls):
+                return True
+        return False
+
+    @staticmethod
+    def can_we_match(call_trace, repro) -> bool:
+        """
+        If the call trace can be caused by one of the syscall in reproducer
+        """
+        # the crashed syscall in report might not in reproducer, let's currently omit it
+        crashed_syscall = CrashInfo.parse_call_trace_from_syscall(call_trace)
+        for syscall in repro.split('-'):
+            if syscall.startswith(crashed_syscall):
+                return True
+        return False
+
     def guess_if_stateful(self):
         # TODO: guess if current crash is related to stateful
-        # 1. get the reproducer, such as, a-b-c-d
-        # 2. analyze the recorded log,
-        pass
+        # 1. get all reproducers, such as, a-b-c-d
+        # 2. analyze the recorded log
+        # 3. check if a reproducer can match call trace
+        # 4. check if a reproducer has shown in executed programs
+
+        # all reproducers to trigger the bug
+        repros = []
+        # execution logs
+        logs = []
+        # crashed call traces
+        call_traces = []
+
+        for item in self.crash_items:
+            if item.syscall_names is not None:
+                repros.append(item.syscall_names)
+            item.extract_console_data()
+            if item.console_log != "":
+                logs.append(item.console_log)
+                call_traces.append(item.call_trace)
+
+        # the crash might have multiple call trace to trigger the bug
+        for idx, log in enumerate(logs):
+            for repro in repros:
+                if self.can_we_match(call_traces[idx], repro) and \
+                        self.match_log_repro(log, repro):
+                    return True
+        return False
 
 
 class MyEncoder(json.JSONEncoder):
@@ -306,7 +450,7 @@ class MyDecoder(json.JSONDecoder):
 def parse_fixed():
     crash_arr: list[CrashInfo] = []
     url = 'https://syzkaller.appspot.com/upstream/fixed'
-    response = requests.get(url, headers=headers_429)
+    response = requests.get(url)
 
     # Parse the HTML content using BeautifulSoup
     soup = BeautifulSoup(response.content, 'html.parser')
@@ -346,7 +490,7 @@ def parse_fixed():
 
 def parse_crash(crash: CrashInfo):
     time.sleep(1)
-    response = requests.get(crash.link, headers=headers_429)
+    response = requests.get(crash.link)
     soup = BeautifulSoup(response.content, 'html.parser')
     table = None
     for tbl in soup.find_all('table'):
@@ -388,12 +532,12 @@ def parse_crash(crash: CrashInfo):
 if __name__ == '__main__':
 
     if sys.argv[1] == '0':
-        parse_crash(
-            crash=CrashInfo('', link='https://syzkaller.appspot.com/bug?id=5270676317f74d30265abb76b7ca58b5608ca545'))
-        exit(0)
-    # get the list of (title, links) tuples
+        # parse a specific crash
+        parse_crash(crash=CrashInfo('',
+                    link='https://syzkaller.appspot.com/bug?id=5270676317f74d30265abb76b7ca58b5608ca545'))
 
     elif sys.argv[1] == '1':
+        # crawl information of all fixed crashes yet with available reproducer
         crash_arr = None
         if os.path.exists('fixed_crash.json'):
             with open('fixed_crash.json', 'r') as f:
@@ -413,6 +557,8 @@ if __name__ == '__main__':
                     file.write(json_data)
     elif sys.argv[1] == '2':
         crash_arr = []
+        crash_arr_syscall = []
+
         with open('fixed_crash.json', 'r') as f:
             crash_arr = json.loads(f.read(), cls=MyDecoder)
 
@@ -426,40 +572,66 @@ if __name__ == '__main__':
             # parse call trace
             print('Processing {}/{}: {}, {}'.format(idx, len(crash_arr), crash.title, crash.link))
 
-            found_item = None
             found_report = False
-
             for item in crash.crash_items:
                 if item.report is not None:
                     item.parse_deeper()
                     if item.call_trace is not None:
                         found_report = True
-                        if item.if_call_trace_from_syscall():
-                            print('Found syscall related call trace', item.report_link)
-                            num_crash_syscall += 1
-                            print()
-                            break
-                        elif item.if_call_trace_from_forked():
-                            print('Found background thread related call trace', item.report_link)
-                            num_crash_backthread += 1
-                            print()
-                            break
-                        elif item.if_call_trace_from_exited():
-                            print('Found exiting system mode related call trace', item.report_link)
-                            num_crash_exiting += 1
-                            print()
-                            break
-                        elif item.if_call_trace_from_interrupt():
-                            print('Found interrupt related call trace', item.report_link)
-                            num_crash_interrupt += 1
-                            print()
-                            break
-                        else:
-                            print('Found none type, please manually check', item.report_link)
-                            print()
+
+            found_item = None
+            for item in crash.crash_items:
+                if item.call_trace is not None:
+                    if item.if_call_trace_from_syscall():
+                        found_item = item
+                        print('Found syscall related call trace', item.report_link)
+                        num_crash_syscall += 1
+                        crash_arr_syscall.append(crash)
+                        print('Crashed Syscall:', crash.parse_call_trace_from_syscall(item.call_trace))
+                        break
+
+            for item in crash.crash_items:
+                if item.call_trace is not None:
+                    if item.if_call_trace_from_forked():
+                        found_item = item
+                        print('Found background thread related call trace', item.report_link)
+                        num_crash_backthread += 1
+                        break
+
+            for item in crash.crash_items:
+                if item.call_trace is not None:
+                    if item.if_call_trace_from_exited():
+                        found_item = item
+                        print('Found exiting system mode related call trace', item.report_link)
+                        num_crash_exiting += 1
+                        break
+
+            for item in crash.crash_items:
+                if item.call_trace is not None:
+                    if item.if_call_trace_from_interrupt():
+                        found_item = item
+                        print('Found interrupt related call trace', item.report_link)
+                        num_crash_interrupt += 1
+                        break
 
             if found_report:
                 num_tot_crash += 1
+            else:
+                print('Cannot find call trace, please manually check', crash.link)
+
+            if not found_item:
+                print('Cannot determine type, please manually check', crash.link)
+            print()
 
         print('Crash Call Trace Related to System Call: {}/{}/{}'.format(num_crash_syscall, num_tot_crash,
                                                                          len(crash_arr)))
+        print('Crash Call Trace Related to Background Thread: {}/{}/{}'.format(num_crash_backthread, num_tot_crash,
+                                                                               len(crash_arr)))
+        print('Crash Call Trace Related to Exiting To User Mode: {}/{}/{}'.format(num_crash_exiting, num_tot_crash,
+                                                                                  len(crash_arr)))
+        print('Crash Call Trace Related to Interrupt: {}/{}/{}'.format(num_crash_interrupt, num_tot_crash,
+                                                                       len(crash_arr)))
+        print('Len of Crash Arr Syscall: ', len(crash_arr_syscall))
+
+        for idx, crash in enumerate(crash_arr_syscall):
+            crash.guess_if_stateful()
