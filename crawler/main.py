@@ -41,7 +41,6 @@ class CommitInfo:
         if report_cell.find('a') is not None:
             report_link = "https://syzkaller.appspot.com" + report_cell.find('a')['href']
             time.sleep(1)
-            # response = requests.get(report_link, headers=headers_429)
             session = requests.Session()
             retry = Retry(connect=3, backoff_factor=0.5)
             adapter = HTTPAdapter(max_retries=retry)
@@ -82,7 +81,6 @@ class CommitInfo:
             return
 
         time.sleep(1)
-        # response = requests.get(self.console_log_link, headers=headers_429)session = requests.Session()
         session = requests.Session()
         retry = Retry(connect=3, backoff_factor=0.5)
         adapter = HTTPAdapter(max_retries=retry)
@@ -93,16 +91,17 @@ class CommitInfo:
         console_data = response.text
 
         # extract executed programs
-        pattern = r"^\d{2}:\d{2}:\d{2}\s+executing program \d+:"
-        if not re.match(pattern, console_data):
+        pattern = "\d{2}:\d{2}:\d{2} executing program \d+:\n"
+        p = re.compile(pattern)
+        m = p.search(console_data)
+        if not m:
             return
 
-        pattern = r"(^\d{2}:\d{2}:\d{2}\s+executing program \d+:)"
         segments = re.findall(pattern, console_data)
         segments = [segment + console_data.split(segment, 1)[1].split('\n\n', 1)[0] + '\n\n' for segment in segments]
         all_progs = []
         for segment in segments:
-            syz_prog = segment.split('\n')[1:-1]
+            syz_prog = '\n'.join(segment.split('\n')[1:-2])
             syscalls = self.parse_sysprog(syz_prog)
             all_progs.append(syscalls)
 
@@ -115,7 +114,6 @@ class CommitInfo:
         if syz_repro_cell.find('a'):
             syz_repro_link = "https://syzkaller.appspot.com" + syz_repro_cell.find('a')['href']
             time.sleep(1)
-            # response = requests.get(syz_repro_link, headers=headers_429)
             session = requests.Session()
             retry = Retry(connect=3, backoff_factor=0.5)
             adapter = HTTPAdapter(max_retries=retry)
@@ -282,7 +280,6 @@ class CrashInfo:
         self.crash_items = crash_items
         self.poc_interval = poc_interval
 
-
     def add_crash(self, new_crash):
         self.crash_items.append(new_crash)
 
@@ -378,7 +375,7 @@ class CrashInfo:
                 return True
         return False
 
-    def guess_if_stateful(self):
+    def guess_if_not_stateful(self):
         # TODO: guess if current crash is related to stateful
         # 1. get all reproducers, such as, a-b-c-d
         # 2. analyze the recorded log
@@ -396,7 +393,7 @@ class CrashInfo:
             if item.syscall_names is not None:
                 repros.append(item.syscall_names)
             item.extract_console_data()
-            if item.console_log != "":
+            if item.console_log != "" and item.console_log is not None:
                 logs.append(item.console_log)
                 call_traces.append(item.call_trace)
 
@@ -534,7 +531,7 @@ if __name__ == '__main__':
     if sys.argv[1] == '0':
         # parse a specific crash
         parse_crash(crash=CrashInfo('',
-                    link='https://syzkaller.appspot.com/bug?id=5270676317f74d30265abb76b7ca58b5608ca545'))
+                                    link='https://syzkaller.appspot.com/bug?id=5270676317f74d30265abb76b7ca58b5608ca545'))
 
     elif sys.argv[1] == '1':
         # crawl information of all fixed crashes yet with available reproducer
@@ -633,5 +630,13 @@ if __name__ == '__main__':
                                                                        len(crash_arr)))
         print('Len of Crash Arr Syscall: ', len(crash_arr_syscall))
 
+        num_stateful = 0
         for idx, crash in enumerate(crash_arr_syscall):
-            crash.guess_if_stateful()
+            if not crash.guess_if_not_stateful():
+                num_stateful += 1
+                print('Processing {}/{}: crash is stateful, can fall into our problem'.format(
+                    idx, len(crash_arr_syscall)), num_stateful, crash.title)
+                print(crash.link)
+            else:
+                print('Processing {}/{}: crash is not stateful, omit'.format(idx, len(crash_arr_syscall)))
+            print()
