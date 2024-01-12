@@ -6,7 +6,10 @@ import time
 import requests
 import pandas as pd
 
+from syscall import *
 from patterns import *
+
+from typing import List
 from bs4 import BeautifulSoup
 from datetime import datetime
 from urllib3.util.retry import Retry
@@ -95,6 +98,7 @@ class CommitInfo:
         p = re.compile(pattern)
         m = p.search(console_data)
         if not m:
+            self.console_log = ""
             return
 
         segments = re.findall(pattern, console_data)
@@ -302,48 +306,12 @@ class CrashInfo:
         self.poc_interval = time_interval
 
     @staticmethod
-    def parse_call_trace_from_syscall(call_trace):
-        """
-        given a call trace, find the related syscall that trigger the crash
-        """
-        for line in reversed(call_trace.split('\n')):
-            line = line.strip()
-            if line.startswith('SyS_'):
-                crashed_syscall = line[4:line.find('+')]
-                return crashed_syscall
-            elif line.startswith('__x64_sys_'):
-                crashed_syscall = line[10:line.find('+')]
-                return crashed_syscall
-            elif line.startswith('__do_sys_'):
-                if '+' in line:
-                    crashed_syscall = line[9:line.find('+')]
-                else:
-                    crashed_syscall = line[9:line.find(' ')]
-                return crashed_syscall
-            elif line.startswith('__sys_'):
-                crashed_syscall = line[6:line.find('+')]
-                return crashed_syscall
-            elif line.startswith('__arm64_sys_'):
-                crashed_syscall = line[12:line.find('+')]
-                return crashed_syscall
-            elif line.startswith('__arm64_compat_sys_'):
-                crashed_syscall = line[19: line.find('+')]
-                return crashed_syscall
-            elif line.startswith('ksys_'):
-                if '+' in line:
-                    crashed_syscall = line[5:line.find('+')]
-                else:
-                    crashed_syscall = line[5:line.find(' ')]
-                return crashed_syscall
-        return ""
-
-    @staticmethod
-    def is_sub_array(array1, array2):
+    def is_sub_array(array1: List[str], array2: List[str]):
         i = 0  # Pointer for array1
         j = 0  # Pointer for array2
 
         while i < len(array1) and j < len(array2):
-            if array1[i] == array2[j]:
+            if array1[i].startswith(array2[j]):
                 i += 1
             j += 1
 
@@ -352,14 +320,16 @@ class CrashInfo:
     @staticmethod
     def match_log_repro(log, repro) -> bool:
         """
-        :param log:
-        :param repro:
-        :return:
+        TODO: more fine-grained matching, currently we do not consider subsystem, say, only ioctl is consider, while
+        ioctl$XX is not considered
         """
         repro_syscalls = repro.split('-')
         for log_item in log.split('\n'):
             log_item_syscalls = log_item.split('-')
             if CrashInfo.is_sub_array(repro_syscalls, log_item_syscalls):
+                print("Find matched execution log and reproducer")
+                print("Program in execution log:", log_item)
+                print("Reproducer:", repro)
                 return True
         return False
 
@@ -369,7 +339,7 @@ class CrashInfo:
         If the call trace can be caused by one of the syscall in reproducer
         """
         # the crashed syscall in report might not in reproducer, let's currently omit it
-        crashed_syscall = CrashInfo.parse_call_trace_from_syscall(call_trace)
+        crashed_syscall = parse_call_trace_from_syscall(call_trace)
         for syscall in repro.split('-'):
             if syscall.startswith(crashed_syscall):
                 return True
@@ -392,8 +362,10 @@ class CrashInfo:
         for item in self.crash_items:
             if item.syscall_names is not None:
                 repros.append(item.syscall_names)
-            item.extract_console_data()
-            if item.console_log != "" and item.console_log is not None:
+            if item.console_log is None:
+                item.extract_console_data()
+            if item.console_log is not None and item.console_log != "" and \
+                    item.call_trace is not None and item.if_call_trace_from_syscall():
                 logs.append(item.console_log)
                 call_traces.append(item.call_trace)
 
@@ -584,7 +556,7 @@ if __name__ == '__main__':
                         print('Found syscall related call trace', item.report_link)
                         num_crash_syscall += 1
                         crash_arr_syscall.append(crash)
-                        print('Crashed Syscall:', crash.parse_call_trace_from_syscall(item.call_trace))
+                        print('Crashed Syscall:', parse_call_trace_from_syscall(item.call_trace))
                         break
 
             for item in crash.crash_items:
@@ -629,14 +601,18 @@ if __name__ == '__main__':
         print('Crash Call Trace Related to Interrupt: {}/{}/{}'.format(num_crash_interrupt, num_tot_crash,
                                                                        len(crash_arr)))
         print('Len of Crash Arr Syscall: ', len(crash_arr_syscall))
+        print()
 
         num_stateful = 0
         for idx, crash in enumerate(crash_arr_syscall):
             if not crash.guess_if_not_stateful():
                 num_stateful += 1
-                print('Processing {}/{}: crash is stateful, can fall into our problem'.format(
-                    idx, len(crash_arr_syscall)), num_stateful, crash.title)
-                print(crash.link)
+                print('Processing {}/{}:'.format(idx, len(crash_arr_syscall)), crash.title)
+                print('Crash is stateful, can fall into our problem, num:', num_stateful, crash.link)
             else:
-                print('Processing {}/{}: crash is not stateful, omit'.format(idx, len(crash_arr_syscall)))
+                print('Processing {}/{}:'.format(idx, len(crash_arr_syscall)), crash.title)
+                print('Crash is not stateful, omit', crash.link)
             print()
+            json_data = json.dumps(crash_arr, cls=MyEncoder, indent=4)
+            with open("fixed_crash.json", "w") as file:
+                file.write(json_data)
