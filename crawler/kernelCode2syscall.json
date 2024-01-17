@@ -5038,7 +5038,7 @@
 	},
 	"____sys_sendmsg": {
 		"none": [
-			"sendmsg$qrtr"
+			"sendmsg"
 		]
 	},
 	"skcipher_recvmsg": {
@@ -21160,8 +21160,7 @@
 	},
 	"__se_sys_ioctl": {
 		"none": [
-			"ioctl$KVM_GET_API_VERSION",
-			"ioctl$KVM_RUN"
+			"ioctl",
 		]
 	},
 	"tomoyo_file_fcntl": {

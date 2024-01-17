@@ -15,6 +15,7 @@ from datetime import datetime
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 
+code2Syscall = kernel2Syscall()
 
 class CommitInfo:
     def __init__(self, time, commit,
@@ -339,7 +340,7 @@ class CrashInfo:
         If the call trace can be caused by one of the syscall in reproducer
         """
         # the crashed syscall in report might not in reproducer, let's currently omit it
-        crashed_syscall = parse_call_trace_from_syscall(call_trace)
+        crashed_syscall = kernel2Syscall.parse_call_trace_from_syscall(call_trace)
         for syscall in repro.split('-'):
             if syscall.startswith(crashed_syscall):
                 return True
@@ -556,7 +557,10 @@ if __name__ == '__main__':
                         print('Found syscall related call trace', item.report_link)
                         num_crash_syscall += 1
                         crash_arr_syscall.append(crash)
-                        print('Crashed Syscall:', parse_call_trace_from_syscall(item.call_trace))
+                        crashed_call = code2Syscall.parse_syscall(item.call_trace)
+                        print('Crashed Syscall:', crashed_call)
+                        if len(crashed_call) == 1:
+                            print('Single Crashed Syscall!!!')
                         break
 
             for item in crash.crash_items:
@@ -603,16 +607,16 @@ if __name__ == '__main__':
         print('Len of Crash Arr Syscall: ', len(crash_arr_syscall))
         print()
 
-        num_stateful = 0
-        for idx, crash in enumerate(crash_arr_syscall):
-            if not crash.guess_if_not_stateful():
-                num_stateful += 1
-                print('Processing {}/{}:'.format(idx, len(crash_arr_syscall)), crash.title)
-                print('Crash is stateful, can fall into our problem, num:', num_stateful, crash.link)
-            else:
-                print('Processing {}/{}:'.format(idx, len(crash_arr_syscall)), crash.title)
-                print('Crash is not stateful, omit', crash.link)
-            print()
-            json_data = json.dumps(crash_arr, cls=MyEncoder, indent=4)
-            with open("fixed_crash.json", "w") as file:
-                file.write(json_data)
+        # num_stateful = 0
+        # for idx, crash in enumerate(crash_arr_syscall):
+        #     if not crash.guess_if_not_stateful():
+        #         num_stateful += 1
+        #         print('Processing {}/{}:'.format(idx, len(crash_arr_syscall)), crash.title)
+        #         print('Crash is stateful, can fall into our problem, num:', num_stateful, crash.link)
+        #     else:
+        #         print('Processing {}/{}:'.format(idx, len(crash_arr_syscall)), crash.title)
+        #         print('Crash is not stateful, omit', crash.link)
+        #     print()
+            # json_data = json.dumps(crash_arr, cls=MyEncoder, indent=4)
+            # with open("fixed_crash.json", "w") as file:
+            #     file.write(json_data)
