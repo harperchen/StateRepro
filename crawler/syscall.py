@@ -3776,16 +3776,171 @@ kernel_func_to_syscall = {
     "kvm_vm_ioctl_unregister_coalesced_mmio": ["ioctl$KVM_UNREGISTER_COALESCED_MMIO"],
     "kvm_vm_ioctl": ["ioctl$KVM_IRQFD"],
 
-
     # __f2fs_ioctl
+
+    "drm_setmaster_ioctl": ["ioctl$DRM_IOCTL_SET_MASTER"],
+    "drm_dropmaster_ioctl": ["ioctl$DRM_IOCTL_DROP_MASTER"],
+    "drm_authmagic": ["ioctl$DRM_IOCTL_AUTH_MAGIC"],
+    "drm_legacy_modeset_ctl_ioctl": ["ioctl$DRM_IOCTL_MODESET_CTL"],
+    "drm_gem_close_ioctl": ["ioctl$DRM_IOCTL_GEM_CLOSE"],
+    "drm_setclientcap": ["ioctl$DRM_IOCTL_SET_CLIENT_CAP"],
+    "drm_getmagic": ["ioctl$DRM_IOCTL_GET_MAGIC"],
+    "drm_getstats": ["ioctl$DRM_IOCTL_GET_STATS"],
+    "drm_mode_rmfb_ioctl": ["ioctl$DRM_IOCTL_MODE_RMFB"],
+    "drm_mode_destroy_dumb_ioctl": ["ioctl$DRM_IOCTL_MODE_DESTROY_DUMB"],
+    "drm_mode_destroyblob_ioctl": ["ioctl$DRM_IOCTL_MODE_DESTROYPROPBLOB"],
+    "drm_mode_revoke_lease_ioctl": ["ioctl$DRM_IOCTL_MODE_REVOKE_LEASE"],
+    "drm_gem_flink_ioctl": ["ioctl$DRM_IOCTL_GEM_FLINK"],
+    "drm_syncobj_create_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_CREATE"],
+    "drm_syncobj_destroy_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_DESTROY"],
+    "drm_prime_handle_to_fd_ioctl": ["ioctl$DRM_IOCTL_PRIME_HANDLE_TO_FD"],
+    "drm_prime_fd_to_handle_ioctl": ["ioctl$DRM_IOCTL_PRIME_FD_TO_HANDLE"],
+    "drm_getunique": ["ioctl$DRM_IOCTL_GET_UNIQUE"],
+    "drm_setversion": ["ioctl$DRM_IOCTL_SET_VERSION"],
+    "drm_gem_open_ioctl": ["ioctl$DRM_IOCTL_GEM_OPEN"],
+    "drm_getcap": ["ioctl$DRM_IOCTL_GET_CAP"],
+    "drm_connector_property_set_ioctl": ["ioctl$DRM_IOCTL_MODE_SETPROPERTY"],
+    "drm_mode_getblob_ioctl": ["ioctl$DRM_IOCTL_MODE_GETPROPBLOB"],
+    "drm_mode_mmap_dumb_ioctl": ["ioctl$DRM_IOCTL_MODE_MAP_DUMB"],
+    "drm_mode_getplane_res": ["ioctl$DRM_IOCTL_MODE_GETPLANERESOURCES"],
+    "drm_mode_createblob_ioctl": ["ioctl$DRM_IOCTL_MODE_CREATEPROPBLOB"],
+    "drm_syncobj_reset_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_RESET"],
+    "drm_syncobj_signal_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_SIGNAL"],
+    "drm_mode_list_lessees_ioctl": ["ioctl$DRM_IOCTL_MODE_LIST_LESSEES"],
+    "drm_mode_get_lease_ioctl": ["ioctl$DRM_IOCTL_MODE_GET_LEASE"],
+    "drm_mode_getencoder": ["ioctl$DRM_IOCTL_MODE_GETENCODER"],
+    "drm_wait_vblank_ioctl": ["ioctl$DRM_IOCTL_WAIT_VBLANK"],
+    "drm_mode_page_flip_ioctl": ["ioctl$DRM_IOCTL_MODE_PAGE_FLIP"],
+    "drm_mode_dirtyfb_ioctl": ["ioctl$DRM_IOCTL_MODE_DIRTYFB"],
+    "drm_mode_obj_set_property_ioctl": ["ioctl$DRM_IOCTL_MODE_OBJ_SETPROPERTY"],
+    "drm_mode_create_lease_ioctl": ["ioctl$DRM_IOCTL_MODE_CREATE_LEASE"],
+    "drm_syncobj_query_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_QUERY"],
+    "drm_syncobj_timeline_signal_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_TIMELINE_SIGNAL"],
+    "drm_mode_cursor_ioctl": ["ioctl$DRM_IOCTL_MODE_CURSOR"],
+    "drm_mode_getfb": ["ioctl$DRM_IOCTL_MODE_GETFB"],
+    "drm_mode_addfb_ioctl": ["ioctl$DRM_IOCTL_MODE_ADDFB"],
+    "drm_mode_gamma_get_ioctl": ["ioctl$DRM_IOCTL_MODE_GETGAMMA"],
+    "drm_mode_gamma_set_ioctl": ["ioctl$DRM_IOCTL_MODE_SETGAMMA"],
+    "drm_mode_create_dumb_ioctl": ["ioctl$DRM_IOCTL_MODE_CREATE_DUMB"],
+    "drm_mode_getplane": ["ioctl$DRM_IOCTL_MODE_GETPLANE"],
+    "drm_mode_obj_get_properties_ioctl": ["ioctl$DRM_IOCTL_MODE_OBJ_GETPROPERTIES"],
+    "drm_syncobj_wait_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_WAIT"],
+    "drm_syncobj_transfer_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_TRANSFER"],
+    "drm_mode_cursor2_ioctl": ["ioctl$DRM_IOCTL_MODE_CURSOR2"],
+    "drm_getclient": ["ioctl$DRM_IOCTL_GET_CLIENT"],
+    "drm_syncobj_timeline_wait_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_TIMELINE_WAIT"],
+    "drm_mode_setplane": ["ioctl$DRM_IOCTL_MODE_SETPLANE"],
+    "drm_mode_atomic_ioctl": ["ioctl$DRM_IOCTL_MODE_ATOMIC"],
+    "drm_version": ["ioctl$DRM_IOCTL_VERSION"],
+    "drm_mode_getresources": ["ioctl$DRM_IOCTL_MODE_GETRESOURCES"],
+    "drm_mode_getproperty_ioctl": ["ioctl$DRM_IOCTL_MODE_GETPROPERTY"],
+    "drm_mode_getconnector": ["ioctl$DRM_IOCTL_MODE_GETCONNECTOR"],
+    "drm_mode_getcrtc": ["ioctl$DRM_IOCTL_MODE_GETCRTC"],
+    "drm_mode_setcrtc": ["ioctl$DRM_IOCTL_MODE_SETCRTC"],
+    "drm_mode_addfb2_ioctl": ["ioctl$DRM_IOCTL_MODE_ADDFB2"],
+    "ptp_read": ["read$ptp"],
+    "fb_read": ["read$fb"],
+    "hidraw_read": ["read$hidraw"],
+    "usbdev_read": ["read$usbfs"],
+    "mon_bin_read": ["read$usbmon"],
+    "snapshot_read": ["read$snapshot"],
+    "rfkill_fop_read": ["read$rfkill"],
+    "msr_read": ["read$msr"],
+
+    "ucma_create_id": ["write$RDMA_USER_CM_CMD_CREATE_ID"],
+    "ucma_destroy_id": ["write$RDMA_USER_CM_CMD_DESTROY_ID"],
+    "ucma_bind_ip": ["write$RDMA_USER_CM_CMD_BIND_IP"],
+    "ucma_resolve_ip": ["write$RDMA_USER_CM_CMD_RESOLVE_IP"],
+    "ucma_resolve_route": ["write$RDMA_USER_CM_CMD_RESOLVE_ROUTE"],
+    "ucma_query_route": ["write$RDMA_USER_CM_CMD_QUERY_ROUTE"],
+    "ucma_connect": ["write$RDMA_USER_CM_CMD_CONNECT"],
+    "ucma_listen": ["write$RDMA_USER_CM_CMD_LISTEN"],
+    "ucma_accept": ["write$RDMA_USER_CM_CMD_ACCEPT"],
+    "ucma_reject": ["write$RDMA_USER_CM_CMD_REJECT"],
+    "ucma_disconnect": ["write$RDMA_USER_CM_CMD_DISCONNECT"],
+    "ucma_init_qp_attr": ["write$RDMA_USER_CM_CMD_INIT_QP_ATTR"],
+    "ucma_get_event": ["write$RDMA_USER_CM_CMD_GET_EVENT"],
+    "ucma_set_option": ["write$RDMA_USER_CM_CMD_SET_OPTION"],
+    "ucma_notify": ["write$RDMA_USER_CM_CMD_NOTIFY"],
+    "ucma_join_ip_multicast": ["write$RDMA_USER_CM_CMD_JOIN_IP_MCAST"],
+    "ucma_leave_multicast": ["write$RDMA_USER_CM_CMD_LEAVE_MCAST"],
+    "ucma_migrate_id": ["write$RDMA_USER_CM_CMD_MIGRATE_ID"],
+    "ucma_query": ["write$RDMA_USER_CM_CMD_QUERY"],
+    "ucma_bind": ["write$RDMA_USER_CM_CMD_BIND"],
+    "ucma_resolve_addr": ["write$RDMA_USER_CM_CMD_RESOLVE_ADDR"],
+    "ucma_join_multicast": ["write$RDMA_USER_CM_CMD_JOIN_MCAST"],
+
+    "autofs_dev_ioctl_version": ["ioctl$AUTOFS_DEV_IOCTL_VERSION"],
+    "autofs_dev_ioctl_protover": ["ioctl$AUTOFS_DEV_IOCTL_PROTOVER"],
+    "autofs_dev_ioctl_protosubver": ["ioctl$AUTOFS_DEV_IOCTL_PROTOSUBVER"],
+    "autofs_dev_ioctl_openmount": ["ioctl$AUTOFS_DEV_IOCTL_OPENMOUNT"],
+    "autofs_dev_ioctl_closemount": ["ioctl$AUTOFS_DEV_IOCTL_CLOSEMOUNT"],
+    "autofs_dev_ioctl_ready": ["ioctl$AUTOFS_DEV_IOCTL_READY"],
+    "autofs_dev_ioctl_fail": ["ioctl$AUTOFS_DEV_IOCTL_FAIL"],
+    "autofs_dev_ioctl_setpipefd": ["ioctl$AUTOFS_DEV_IOCTL_SETPIPEFD"],
+    "autofs_dev_ioctl_catatonic": ["ioctl$AUTOFS_DEV_IOCTL_CATATONIC"],
+    "autofs_dev_ioctl_timeout": ["ioctl$AUTOFS_DEV_IOCTL_TIMEOUT"],
+    "autofs_dev_ioctl_requester": ["ioctl$AUTOFS_DEV_IOCTL_REQUESTER"],
+    "autofs_dev_ioctl_expire": ["ioctl$AUTOFS_DEV_IOCTL_EXPIRE"],
+    "autofs_dev_ioctl_askumount": ["ioctl$AUTOFS_DEV_IOCTL_ASKUMOUNT"],
+    "autofs_dev_ioctl_ismountpoint": ["ioctl$AUTOFS_DEV_IOCTL_ISMOUNTPOINT"],
+
+    "snd_seq_ioctl_set_queue_tempo": ["ioctl$SNDRV_SEQ_IOCTL_SET_QUEUE_TEMPO"],
+    "snd_seq_ioctl_remove_events": ["ioctl$SNDRV_SEQ_IOCTL_REMOVE_EVENTS"],
+    "snd_seq_ioctl_set_queue_client": ["ioctl$SNDRV_SEQ_IOCTL_SET_QUEUE_CLIENT"],
+    "snd_seq_ioctl_subscribe_port": ["ioctl$SNDRV_SEQ_IOCTL_SUBSCRIBE_PORT"],
+    "snd_seq_ioctl_unsubscribe_port": ["ioctl$SNDRV_SEQ_IOCTL_UNSUBSCRIBE_PORT"],
+    "snd_seq_ioctl_set_client_pool": ["ioctl$SNDRV_SEQ_IOCTL_SET_CLIENT_POOL"],
+    "snd_seq_ioctl_set_queue_timer": ["ioctl$SNDRV_SEQ_IOCTL_SET_QUEUE_TIMER"],
+    "snd_seq_ioctl_delete_queue": ["ioctl$SNDRV_SEQ_IOCTL_DELETE_QUEUE"],
+    "snd_seq_ioctl_delete_port": ["ioctl$SNDRV_SEQ_IOCTL_DELETE_PORT"],
+    "snd_seq_ioctl_set_port_info": ["ioctl$SNDRV_SEQ_IOCTL_SET_PORT_INFO"],
+    "snd_seq_ioctl_set_client_info": ["ioctl$SNDRV_SEQ_IOCTL_SET_CLIENT_INFO"],
+    "snd_seq_ioctl_pversion": ["ioctl$SNDRV_SEQ_IOCTL_PVERSION"],
+    "snd_seq_ioctl_client_id": ["ioctl$SNDRV_SEQ_IOCTL_CLIENT_ID"],
+    "snd_seq_ioctl_running_mode": ["ioctl$SNDRV_SEQ_IOCTL_RUNNING_MODE"],
+    "snd_seq_ioctl_get_queue_tempo": ["ioctl$SNDRV_SEQ_IOCTL_GET_QUEUE_TEMPO"],
+    "snd_seq_ioctl_system_info": ["ioctl$SNDRV_SEQ_IOCTL_SYSTEM_INFO"],
+    "snd_seq_ioctl_get_queue_client": ["ioctl$SNDRV_SEQ_IOCTL_GET_QUEUE_CLIENT"],
+    "snd_seq_ioctl_get_subscription": ["ioctl$SNDRV_SEQ_IOCTL_GET_SUBSCRIPTION"],
+    "snd_seq_ioctl_get_client_pool": ["ioctl$SNDRV_SEQ_IOCTL_GET_CLIENT_POOL"],
+    "snd_seq_ioctl_query_subs": ["ioctl$SNDRV_SEQ_IOCTL_QUERY_SUBS"],
+    "snd_seq_ioctl_get_queue_status": ["ioctl$SNDRV_SEQ_IOCTL_GET_QUEUE_STATUS"],
+    "snd_seq_ioctl_get_queue_timer": ["ioctl$SNDRV_SEQ_IOCTL_GET_QUEUE_TIMER"],
+    "snd_seq_ioctl_create_queue": ["ioctl$SNDRV_SEQ_IOCTL_CREATE_QUEUE"],
+    "snd_seq_ioctl_get_queue_info": ["ioctl$SNDRV_SEQ_IOCTL_GET_QUEUE_INFO"],
+    "snd_seq_ioctl_set_queue_info": ["ioctl$SNDRV_SEQ_IOCTL_SET_QUEUE_INFO"],
+    "snd_seq_ioctl_get_named_queue": ["ioctl$SNDRV_SEQ_IOCTL_GET_NAMED_QUEUE"],
+    "snd_seq_ioctl_create_port": ["ioctl$SNDRV_SEQ_IOCTL_CREATE_PORT"],
+    "snd_seq_ioctl_get_port_info": ["ioctl$SNDRV_SEQ_IOCTL_GET_PORT_INFO"],
+    "snd_seq_ioctl_query_next_port": ["ioctl$SNDRV_SEQ_IOCTL_QUERY_NEXT_PORT"],
+    "snd_seq_ioctl_get_client_info": ["ioctl$SNDRV_SEQ_IOCTL_GET_CLIENT_INFO"],
+    "snd_seq_ioctl_query_next_client": ["ioctl$SNDRV_SEQ_IOCTL_QUERY_NEXT_CLIENT"],
+
+    "seccomp_get_action_avail": ["seccomp$SECCOMP_GET_ACTION_AVAIL"],
+    "seccomp_get_notif_sizes": ["seccomp$SECCOMP_GET_NOTIF_SIZES"],
+    "seccomp_set_mode_filter": ["seccomp$SECCOMP_SET_MODE_FILTER"],
+    "seccomp_set_mode_strict": ["seccomp$SECCOMP_SET_MODE_STRICT"],
+
 }
 
 
 class kernel2Syscall:
 
     def __init__(self) -> None:
+        print(len(kernel_func_to_syscall))
         with open('./kernelCode2syscall.json', 'r') as f:
             self.kernelCode2Syscall = json.load(f)
+            for kernelfunc, bbId2syscall in self.kernelCode2Syscall.items():
+                if kernelfunc in kernel_func_to_syscall:
+                    continue
+                syscalls = set()
+                for bbId, calls in bbId2syscall.items():
+                    syscalls.update(calls)
+                if len(syscalls) == 1:
+                    only_syscall = syscalls.pop()
+                    if '$' in only_syscall:
+                        print("\"{}\": [\"{}\"],".format(kernelfunc, only_syscall))
 
     @staticmethod
     def two_custom_intersection(set1, set2):
@@ -3827,17 +3982,19 @@ class kernel2Syscall:
 
         return result
 
-
     def parse_syscall(self, call_trace, precise=True):
         potential_calls = set()
         if precise:
             potential_calls.update(self.parse_syscall_by_codeMap(call_trace))
+            potential_calls.add(self.parse_syscall_by_trace(call_trace))
+            for kernelCall, syscalls in kernel_func_to_syscall.items():
+                if kernelCall in call_trace:
+                    potential_calls = self.two_custom_intersection(potential_calls, syscalls)
+
         else:
             potential_calls.add(self.parse_syscall_by_trace(call_trace))
 
-        for kernelCall, syscalls in kernel_func_to_syscall.items():
-            if kernelCall in call_trace:
-                potential_calls.update(syscalls)
+
 
         return list(potential_calls)
 
@@ -3897,23 +4054,22 @@ class kernel2Syscall:
         return list(candidateSyscalls)
 
 
-
-
 if __name__ == '__main__':
     code2Call = kernel2Syscall()
     call_trace = \
-    """
-     check_object_size include/linux/thread_info.h:108 [inline]
-     check_copy_size include/linux/thread_info.h:139 [inline]
-     copy_to_iter include/linux/uio.h:105 [inline]
-     copy_linear_skb include/net/udp.h:371 [inline]
-     udpv6_recvmsg+0x1040/0x1af0 net/ipv6/udp.c:395
-     inet_recvmsg+0x14c/0x5f0 net/ipv4/af_inet.c:793
-     sock_recvmsg_nosec net/socket.c:792 [inline]
-     sock_recvmsg+0xc9/0x110 net/socket.c:799
-     SYSC_recvfrom+0x2d6/0x570 net/socket.c:1788
-     SyS_recvfrom+0x40/0x50 net/socket.c:1760
-     entry_SYSCALL_64_fastpath+0x1f/0xbe
+        """
+ dccp_sendmsg+0x968/0xcc0 net/dccp/proto.c:801
+ inet_sendmsg+0x9d/0xe0 net/ipv4/af_inet.c:847
+ sock_sendmsg_nosec net/socket.c:730 [inline]
+ __sock_sendmsg+0xd5/0x180 net/socket.c:745
+ ____sys_sendmsg+0x2ac/0x940 net/socket.c:2584
+ ___sys_sendmsg+0x135/0x1d0 net/socket.c:2638
+ __sys_sendmmsg+0x1a1/0x450 net/socket.c:2724
+ __do_sys_sendmmsg net/socket.c:2753 [inline]
+ __se_sys_sendmmsg net/socket.c:2750 [inline]
+ __x64_sys_sendmmsg+0x9c/0x100 net/socket.c:2750
+ do_syscall_x64 arch/x86/entry/common.c:51 [inline]
+ do_syscall_64+0x3f/0x110 arch/x86/entry/common.c:82
+ entry_SYSCALL_64_after_hwframe+0x63/0x6b
     """
     print(code2Call.parse_syscall(call_trace))
-

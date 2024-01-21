@@ -358,6 +358,10 @@ def cmp2(kern_syscall, fuzz_syscall):
     else:
         return score
 
+def MatchMySig(syzkaller_signature_file, kernel_signature_file):
+    syzkaller_signature_file = parse_syzkaller_signature(syzkaller_signature_file)
+
+
 def MatchSig(syzkaller_signature_file, kernel_signature_file):
     syzkaller_signatures = parse_syzkaller_signature(syzkaller_signature_file)
     kernel_signatures = parse_kernel_signature(kernel_signature_file)

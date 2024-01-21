@@ -587,6 +587,14 @@ if __name__ == '__main__':
                         num_crash_interrupt += 1
                         break
 
+            repros = set()
+            for item in crash.crash_items:
+                if item.syscall_names is not None:
+                    repros.add(item.syscall_names)
+
+            for repro in repros:
+                print('PoC: ', repro)
+
             if found_report:
                 num_tot_crash += 1
             else:
