@@ -289,7 +289,7 @@ def cmp2(kern_syscall, fuzz_syscall):
                 continue
             if (len(kern_arg.value) == 0 and len(fuzz_arg.value) != 0):
                 # print('g 3')
-                return 0
+                continue
             kern_val = kern_arg.value[0]
             if kern_arg.and_value != 0:
                 flag = False

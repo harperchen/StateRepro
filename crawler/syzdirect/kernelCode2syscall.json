@@ -21160,7 +21160,7 @@
 	},
 	"__se_sys_ioctl": {
 		"none": [
-			"ioctl",
+			"ioctl"
 		]
 	},
 	"tomoyo_file_fcntl": {

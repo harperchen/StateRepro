@@ -3838,6 +3838,8 @@ kernel_func_to_syscall = {
     "drm_mode_getcrtc": ["ioctl$DRM_IOCTL_MODE_GETCRTC"],
     "drm_mode_setcrtc": ["ioctl$DRM_IOCTL_MODE_SETCRTC"],
     "drm_mode_addfb2_ioctl": ["ioctl$DRM_IOCTL_MODE_ADDFB2"],
+
+
     "ptp_read": ["read$ptp"],
     "fb_read": ["read$fb"],
     "hidraw_read": ["read$hidraw"],
@@ -3929,18 +3931,22 @@ class kernel2Syscall:
 
     def __init__(self) -> None:
         print(len(kernel_func_to_syscall))
-        with open('./kernelCode2syscall.json', 'r') as f:
+        correct_mapping = set()
+        with open('./mysyzdirect/myKernelCode2Syscall.json', 'r') as f:
             self.kernelCode2Syscall = json.load(f)
             for kernelfunc, bbId2syscall in self.kernelCode2Syscall.items():
-                if kernelfunc in kernel_func_to_syscall:
-                    continue
                 syscalls = set()
                 for bbId, calls in bbId2syscall.items():
                     syscalls.update(calls)
                 if len(syscalls) == 1:
                     only_syscall = syscalls.pop()
-                    if '$' in only_syscall:
-                        print("\"{}\": [\"{}\"],".format(kernelfunc, only_syscall))
+                    # if '$' in only_syscall:
+                    correct_mapping.add(only_syscall)
+                        # print("\"{}\": [\"{}\"],".format(kernelfunc, only_syscall))
+        print(len(correct_mapping))
+        for syscall in all_syscall:
+            if syscall not in correct_mapping:
+                print('Unmatched: ', syscall)
 
     @staticmethod
     def two_custom_intersection(set1, set2):
