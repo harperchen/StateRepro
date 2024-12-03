@@ -240,16 +240,26 @@ class CommitInfo:
         """
         verify if current call trace is related to syscall execution
         """
-        if ('do_syscall_x64' in self.call_trace
-            or 'do_syscall_64' in self.call_trace
-            or 'entry_SYSCALL_64' in self.call_trace) \
+        if 'do_syscall_x64' in self.call_trace:
+            return True
+        if ('do_syscall_64' in self.call_trace or
+            'entry_SYSCALL_64' in self.call_trace) \
                 and ('__x64_sys_' in self.call_trace
                      or '__sys_' in self.call_trace
                      or 'SyS_' in self.call_trace
-                     or 'ksys_' in self.call_trace):
+                     or 'ksys_' in self.call_trace
+                     or '__do_sys' in self.call_trace
+                     or '__se_sys' in self.call_trace
+            or 'do_sys_' in self.call_trace
+        ):
             # crash is triggered when executing syscall on x86_64
             return True
+        elif '__do_fast_syscall_32' in self.call_trace or 'do_fast_syscall_32' in self.call_trace:
+            return True
         elif '__arm64_sys_' in self.call_trace or '__invoke_syscall' in self.call_trace:
+            return True
+        elif 'do_readv' in self.call_trace or 'io_uring_setup' in self.call_trace or 'do_mkdirat' in self.call_trace\
+                or 'do_writev' in self.call_trace:
             return True
         else:
             return False
@@ -260,16 +270,37 @@ class CommitInfo:
         """
         if 'ret_from_fork' in self.call_trace or 'process_one_work' in self.call_trace:
             return True
-        else:
-            return False
-
-    def if_call_trace_from_exited(self):
-        if 'syscall_exit_to_user_mode' in self.call_trace or 'exit_to_user_mode' in self.call_trace:
+        elif 'kthread' in self.call_trace:
+            return True
+        elif '<TASK>' in self.call_trace:
             return True
         else:
             return False
 
     def if_call_trace_from_interrupt(self):
+        if '__do_softirq' in self.call_trace or 'do_IRQ' in self.call_trace:
+            return True
+        elif 'apic_timer_interrupt' in self.call_trace:
+            return True
+        elif 'sysvec_irq_work' in self.call_trace:
+            return True
+        elif '<IRQ>' in self.call_trace:
+            return True
+        return False
+
+    def if_call_trace_exit_mode(self):
+        if 'syscall_return_slowpath' in self.call_trace:
+            return True
+        elif '__syscall_exit_to_user_mode_work' in self.call_trace:
+            return True
+        elif 'syscall_exit_to_user_mode' in self.call_trace:
+            return True
+        elif 'exit_to_user_mode_loop' in self.call_trace:
+            return True
+        elif 'exit_to_usermode_loop' in self.call_trace:
+            return True
+        elif 'exit_to_user_mode' in self.call_trace:
+            return True
         return False
 
 
@@ -549,11 +580,11 @@ if __name__ == '__main__':
                     if item.call_trace is not None:
                         found_report = True
 
-            found_item = None
+
             for item in crash.crash_items:
                 if item.call_trace is not None:
+                    print(item.call_trace)
                     if item.if_call_trace_from_syscall():
-                        found_item = item
                         print('Found syscall related call trace', item.report_link)
                         num_crash_syscall += 1
                         crash_arr_syscall.append(crash)
@@ -562,30 +593,23 @@ if __name__ == '__main__':
                         if len(crashed_call) == 1:
                             print('Single Crashed Syscall!!!')
                         break
-
-            for item in crash.crash_items:
-                if item.call_trace is not None:
-                    if item.if_call_trace_from_forked():
-                        found_item = item
+                    elif item.if_call_trace_from_forked():
                         print('Found background thread related call trace', item.report_link)
                         num_crash_backthread += 1
                         break
-
-            for item in crash.crash_items:
-                if item.call_trace is not None:
-                    if item.if_call_trace_from_exited():
-                        found_item = item
-                        print('Found exiting system mode related call trace', item.report_link)
-                        num_crash_exiting += 1
-                        break
-
-            for item in crash.crash_items:
-                if item.call_trace is not None:
-                    if item.if_call_trace_from_interrupt():
-                        found_item = item
+                    elif item.if_call_trace_from_interrupt():
                         print('Found interrupt related call trace', item.report_link)
                         num_crash_interrupt += 1
                         break
+                    elif item.if_call_trace_exit_mode():
+                        print('Found exit to user mode related call trace', item.report_link)
+                        num_crash_exiting += 1
+                        break
+                    else:
+                        print('Unknown call trace', item.report_link)
+                        print(item.call_trace)
+                        break
+
 
             repros = set()
             for item in crash.crash_items:
@@ -600,8 +624,6 @@ if __name__ == '__main__':
             else:
                 print('Cannot find call trace, please manually check', crash.link)
 
-            if not found_item:
-                print('Cannot determine type, please manually check', crash.link)
             print()
 
         print('Crash Call Trace Related to System Call: {}/{}/{}'.format(num_crash_syscall, num_tot_crash,
