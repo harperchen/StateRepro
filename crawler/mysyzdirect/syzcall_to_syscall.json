@@ -1,0 +1,122 @@
+{
+    "syz_kvm_setup_cpu": [
+        "ioctl",
+        "close"
+    ],
+    "syz_emit_ethernet": [
+        "write",
+        "writev"
+    ],
+    "syz_io_uring_complete": [
+    ],
+    "syz_io_uring_setup": [
+        "io_uring_setup"
+    ],
+    "syz_io_uring_submit": [
+    ],
+    "syz_usbip_server_init": [
+        "socketpair",
+        "write"
+    ],
+    "syz_usb_connect": [
+        "ioctl"
+    ],
+    "syz_btf_id_by_name": [
+        "open",
+        "openat",
+        "read"
+    ],
+    "syz_memcpy_off": [
+    ],
+    "syz_extract_tcp_res": [
+        "read"
+    ],
+    "syz_open_dev": [
+        "open",
+        "openat"
+    ],
+    "syz_open_procfs": [
+        "open",
+        "openat"
+    ],
+    "syz_open_pts": [
+        "open",
+        "openat"
+    ],
+    "syz_init_net_socket": [
+        "open",
+        "openat",
+        "socket",
+        "close",
+        "setns"
+    ],
+    "syz_emit_vhci": [
+        "write"
+    ],
+    "syz_genetlink_get_family_id": [
+        "socket"
+    ],
+    "syz_read_part_table": [
+        "memfd_create",
+        "ftruncate",
+        "pwritev",
+        "open",
+        "openat",
+        "close",
+        "ioctl",
+        "stat"
+    ],
+    "syz_mount_image": [
+        "memfd_create",
+        "ftruncate",
+        "pwritev",
+        "open",
+        "openat",
+        "close",
+        "ioctl",
+        "mkdir",
+        "mount"
+    ],
+    "syz_fuse_handle_req": [
+        "read",
+        "write"
+    ],
+    "syz_80211_inject_frame": [
+        "socket",
+        "sendto",
+        "send",
+        "recv",
+        "recvfrom",
+        "close"
+    ],
+    "syz_80211_join_ibss": [
+        "socket",
+        "sendto",
+        "send",
+        "recv",
+        "recvfrom",
+        "close",
+        "ioctl"
+    ],
+    "syz_clone": [
+        "clone",
+        "exit"
+    ],
+    "syz_clone3": [
+        "clone3"
+    ],
+    "syz_usb_control_io": [
+        "ioctl"
+    ],
+    "syz_usb_ep_write": [
+        "ioctl"
+    ],
+    "syz_usb_disconnect": [
+        "close"
+    ],
+    "syz_usb_connect_ath9k": [
+        "open",
+        "ioctl",
+        "write"
+    ]
+}

@@ -1,4 +1,5 @@
 import json
+import pandas as pd
 
 all_syscall = [
     "accept$alg",
@@ -3502,451 +3503,33 @@ all_syscall = [
     "write$vhost_msg_v2"
 ]
 
-kernel_func_to_syscall = {
-    "write": ["write", "syz_emit_ethernet"],
-    "writev": ["writev", "syz_emit_ethernet"],
-
-    # static const struct genl_small_ops
-    "nbd_genl_connect": ["sendmsg$NBD_CMD_CONNECT"],
-    "nbd_genl_disconnect": ["sendmsg$NBD_CMD_DISCONNECT"],
-    "nbd_genl_reconfigure": ["sendmsg$NBD_CMD_RECONFIGURE"],
-    "nbd_genl_status": ["sendmsg$NBD_CMD_STATUS"],
-
-    "gtp_genl_new_pdp": ["sendmsg$GTP_CMD_NEWPDP"],
-    "gtp_genl_del_pdp": ["sendmsg$GTP_CMD_DELPDP"],
-    "gtp_genl_get_pdp": ["sendmsg$GTP_CMD_GETPDP"],
-
-    "team_nl_cmd_noop": ["sendmsg$TEAM_CMD_NOOP"],
-    "team_nl_cmd_options_set": ["sendmsg$TEAM_CMD_OPTIONS_SET"],
-    "team_nl_cmd_options_get": ["sendmsg$TEAM_CMD_OPTIONS_GET"],
-    "team_nl_cmd_port_list_get": ["sendmsg$TEAM_CMD_PORT_LIST_GET"],
-
-    "devlink_nl_cmd_get_doit": ["sendmsg$DEVLINK_CMD_GET"],
-    "devlink_nl_cmd_port_get_doit": ["sendmsg$DEVLINK_CMD_PORT_GET"],
-    "devlink_nl_cmd_port_set_doit": ["sendmsg$DEVLINK_CMD_PORT_SET"],
-    "devlink_nl_cmd_port_split_doit": ["sendmsg$DEVLINK_CMD_PORT_SPLIT"],
-    "devlink_nl_cmd_port_unsplit_doit": ["sendmsg$DEVLINK_CMD_PORT_UNSPLIT"],
-    "devlink_nl_cmd_sb_get_doit": ["sendmsg$DEVLINK_CMD_SB_GET"],
-    "devlink_nl_cmd_sb_pool_get_doit": ["sendmsg$DEVLINK_CMD_SB_POOL_GET"],
-    "devlink_nl_cmd_sb_pool_set_doit": ["sendmsg$DEVLINK_CMD_SB_POOL_SET"],
-    "devlink_nl_cmd_sb_port_pool_get_doit": ["sendmsg$DEVLINK_CMD_SB_PORT_POOL_GET"],
-    "devlink_nl_cmd_sb_port_pool_set_doit": ["sendmsg$DEVLINK_CMD_SB_PORT_POOL_SET"],
-    "devlink_nl_cmd_sb_tc_pool_bind_get_doit": ["sendmsg$DEVLINK_CMD_SB_TC_POOL_BIND_GET"],
-    "devlink_nl_cmd_sb_tc_pool_bind_set_doit": ["sendmsg$DEVLINK_CMD_SB_TC_POOL_BIND_SET"],
-    "devlink_nl_cmd_sb_occ_snapshot_doit": ["sendmsg$DEVLINK_CMD_SB_OCC_SNAPSHOT"],
-    "devlink_nl_cmd_sb_occ_max_clear_doit": ["sendmsg$DEVLINK_CMD_SB_OCC_MAX_CLEAR"],
-    "devlink_nl_cmd_trap_get_doit": ["sendmsg$DEVLINK_CMD_TRAP_GET"],
-    "devlink_nl_cmd_trap_set_doit": ["sendmsg$DEVLINK_CMD_TRAP_SET"],
-    "devlink_nl_cmd_trap_group_get_doit": ["sendmsg$DEVLINK_CMD_TRAP_GROUP_GET"],
-    "devlink_nl_cmd_trap_group_set_doit": ["sendmsg$DEVLINK_CMD_TRAP_GROUP_SET"],
-    "devlink_nl_cmd_trap_policer_get_doit": ["sendmsg$DEVLINK_CMD_TRAP_POLICER_GET"],
-    "devlink_nl_cmd_trap_policer_set_doit": ["sendmsg$DEVLINK_CMD_TRAP_POLICER_SET"],
-
-    "ieee802154_add_iface": ["sendmsg$IEEE802154_ADD_IFACE"],
-    "ieee802154_del_iface": ["sendmsg$IEEE802154_DEL_IFACE"],
-    "ieee802154_associate_req": ["sendmsg$IEEE802154_ASSOCIATE_REQ"],
-    "ieee802154_associate_resp": ["sendmsg$IEEE802154_ASSOCIATE_RESP"],
-    "ieee802154_disassociate_req": ["sendmsg$IEEE802154_DISASSOCIATE_REQ"],
-    "ieee802154_scan_req": ["sendmsg$IEEE802154_SCAN_REQ"],
-    "ieee802154_start_req": ["sendmsg$IEEE802154_START_REQ"],
-    "ieee802154_set_macparams": ["sendmsg$IEEE802154_SET_MACPARAMS"],
-    "ieee802154_llsec_getparams": ["sendmsg$IEEE802154_LLSEC_GETPARAMS"],
-    "ieee802154_llsec_setparams": ["sendmsg$IEEE802154_LLSEC_SETPARAMS"],
-    "ieee802154_llsec_add_key": ["sendmsg$IEEE802154_LLSEC_ADD_KEY"],
-    "ieee802154_llsec_del_key": ["sendmsg$IEEE802154_LLSEC_DEL_KEY"],
-    "ieee802154_llsec_add_dev": ["sendmsg$IEEE802154_LLSEC_ADD_DEV"],
-    "ieee802154_llsec_del_dev": ["sendmsg$IEEE802154_LLSEC_DEL_DEV"],
-    "ieee802154_llsec_add_devkey": ["sendmsg$IEEE802154_LLSEC_ADD_DEVKEY"],
-    "ieee802154_llsec_del_devkey": ["sendmsg$IEEE802154_LLSEC_DEL_DEVKEY"],
-    "ieee802154_llsec_add_seclevel": ["sendmsg$IEEE802154_LLSEC_ADD_SECLEVEL"],
-    "ieee802154_llsec_del_seclevel": ["sendmsg$IEEE802154_LLSEC_DEL_SECLEVEL"],
-    "ieee802154_list_phy": ["sendmsg$IEEE802154_LIST_IFACE"],
-    "ieee802154_list_iface": ["sendmsg$IEEE802154_LIST_IFACE"],
-
-    "l2tp_nl_cmd_noop": ["sendmsg$L2TP_CMD_NOOP"],
-    "l2tp_nl_cmd_tunnel_create": ["sendmsg$L2TP_CMD_TUNNEL_CREATE"],
-    "l2tp_nl_cmd_tunnel_delete": ["sendmsg$L2TP_CMD_TUNNEL_DELETE"],
-    "l2tp_nl_cmd_tunnel_modify": ["sendmsg$L2TP_CMD_TUNNEL_MODIFY"],
-    "l2tp_nl_cmd_tunnel_get": ["sendmsg$L2TP_CMD_TUNNEL_GET"],
-    "l2tp_nl_cmd_session_create": ["sendmsg$L2TP_CMD_SESSION_CREATE"],
-    "l2tp_nl_cmd_session_delete": ["sendmsg$L2TP_CMD_SESSION_DELETE"],
-    "l2tp_nl_cmd_session_modify": ["sendmsg$L2TP_CMD_SESSION_MODIFY"],
-    "l2tp_nl_cmd_session_get": ["sendmsg$L2TP_CMD_SESSION_GET"],
-
-    "batadv_netlink_get_mesh": ["sendmsg$BATADV_CMD_GET_MESH"],
-    "batadv_netlink_tp_meter_start": ["sendmsg$BATADV_CMD_TP_METER"],
-    "batadv_netlink_tp_meter_cancel": ["sendmsg$BATADV_CMD_TP_METER_CANCEL"],
-    "batadv_netlink_get_hardif": ["sendmsg$BATADV_CMD_GET_HARDIF"],
-    "batadv_netlink_set_mesh": ["sendmsg$BATADV_CMD_SET_MESH"],
-    "batadv_netlink_set_hardif": ["sendmsg$BATADV_CMD_SET_HARDIF"],
-    "batadv_netlink_get_vlan": ["sendmsg$BATADV_CMD_GET_VLAN"],
-    "batadv_netlink_set_vlan": ["sendmsg$BATADV_CMD_SET_VLAN"],
-
-    "fou_nl_cmd_add_port": ["sendmsg$FOU_CMD_ADD"],
-    "fou_nl_cmd_rm_port": ["sendmsg$FOU_CMD_DEL"],
-    "fou_nl_cmd_get_port": ["sendmsg$FOU_CMD_GET"],
-
-    "sctp_setsockopt_bindx": ["setsockopt$inet_sctp6_SCTP_SOCKOPT_BINDX_ADD",
-                              "setsockopt$inet_sctp_SCTP_SOCKOPT_BINDX_ADD",
-                              "setsockopt$inet_sctp6_SCTP_SOCKOPT_BINDX_REM",
-                              "setsockopt$inet_sctp_SCTP_SOCKOPT_BINDX_REM"],
-    "sctp_setsockopt_connectx_old": ["setsockopt$inet_sctp6_SCTP_SOCKOPT_CONNECTX_OLD",
-                                     "setsockopt$inet_sctp_SCTP_SOCKOPT_CONNECTX_OLD"],
-    "sctp_setsockopt_connectx": ["setsockopt$inet_sctp6_SCTP_SOCKOPT_CONNECTX",
-                                 "setsockopt$inet_sctp_SCTP_SOCKOPT_CONNECTX"],
-    "sctp_setsockopt_disable_fragments": ["setsockopt$inet_sctp6_SCTP_DISABLE_FRAGMENTS",
-                                          "setsockopt$inet_sctp_SCTP_DISABLE_FRAGMENTS"],
-    "sctp_setsockopt_events": ["setsockopt$inet_sctp_SCTP_EVENTS",
-                               "setsockopt$inet_sctp6_SCTP_EVENTS"],
-    "sctp_setsockopt_autoclose": ["setsockopt$inet_sctp_SCTP_AUTOCLOSE",
-                                  "setsockopt$inet_sctp6_SCTP_AUTOCLOSE"],
-    "sctp_setsockopt_peer_addr_params": ["setsockopt$inet_sctp_SCTP_PEER_ADDR_PARAMS",
-                                         "setsockopt$inet_sctp6_SCTP_PEER_ADDR_PARAMS"],
-    "sctp_setsockopt_delayed_ack": ["setsockopt$inet_sctp_SCTP_DELAYED_SACK",
-                                    "setsockopt$inet_sctp6_SCTP_DELAYED_SACK"],
-    "sctp_setsockopt_partial_delivery_point": ["setsockopt$inet_sctp_SCTP_PARTIAL_DELIVERY_POINT",
-                                               "setsockopt$inet_sctp6_SCTP_PARTIAL_DELIVERY_POINT"],
-    "sctp_setsockopt_initmsg": ["setsockopt$inet_sctp_SCTP_INITMSG",
-                                "setsockopt$inet_sctp6_SCTP_INITMSG"],
-    "sctp_setsockopt_default_send_param": ["setsockopt$inet_sctp_SCTP_DEFAULT_SEND_PARAM",
-                                           "setsockopt$inet_sctp6_SCTP_DEFAULT_SEND_PARAM"],
-    "sctp_setsockopt_default_sndinfo": ["setsockopt$inet_sctp_SCTP_DEFAULT_SNDINFO",
-                                        "setsockopt$inet_sctp6_SCTP_DEFAULT_SNDINFO"],
-    "sctp_setsockopt_primary_addr": ["setsockopt$inet_sctp_SCTP_PRIMARY_ADDR",
-                                     "setsockopt$inet_sctp6_SCTP_PRIMARY_ADDR"],
-    "sctp_setsockopt_peer_primary_addr": ["setsockopt$inet_sctp_SCTP_SET_PEER_PRIMARY_ADDR",
-                                          "setsockopt$inet_sctp6_SCTP_SET_PEER_PRIMARY_ADDR"],
-    "sctp_setsockopt_nodelay": ["setsockopt$inet_sctp_SCTP_NODELAY",
-                                "setsockopt$inet_sctp6_SCTP_NODELAY"],
-    "sctp_setsockopt_rtoinfo": ["setsockopt$inet_sctp_SCTP_RTOINFO",
-                                "setsockopt$inet_sctp6_SCTP_RTOINFO"],
-    "sctp_setsockopt_scheduler": ["setsockopt$inet_sctp_SCTP_STREAM_SCHEDULER",
-                                  "setsockopt$inet_sctp6_SCTP_STREAM_SCHEDULER"],
-    "sctp_setsockopt_scheduler_value": ["setsockopt$inet_sctp_SCTP_STREAM_SCHEDULER_VALUE",
-                                        "setsockopt$inet_sctp6_SCTP_STREAM_SCHEDULER_VALUE"],
-    "sctp_setsockopt_add_streams": ["setsockopt$inet_sctp_SCTP_ADD_STREAMS",
-                                    "setsockopt$inet_sctp6_SCTP_ADD_STREAMS"],
-    "sctp_setsockopt_associnfo": ["setsockopt$inet_sctp6_SCTP_ASSOCINFO",
-                                  "setsockopt$inet_sctp_SCTP_ASSOCINFO"],
-    "sctp_setsockopt_mappedv4": ["setsockopt$inet_sctp6_SCTP_I_WANT_MAPPED_V4_ADDR",
-                                 "setsockopt$inet_sctp_SCTP_I_WANT_MAPPED_V4_ADDR"],
-    "sctp_setsockopt_maxseg": ["setsockopt$inet_sctp_SCTP_MAXSEG",
-                               "setsockopt$inet_sctp6_SCTP_MAXSEG"],
-    "sctp_setsockopt_adaptation_layer": ["setsockopt$inet_sctp6_SCTP_ADAPTATION_LAYER",
-                                         "setsockopt$inet_sctp_SCTP_ADAPTATION_LAYER"],
-    "sctp_setsockopt_context": ["setsockopt$inet_sctp6_SCTP_CONTEXT",
-                                "setsockopt$inet_sctp_SCTP_CONTEXT"],
-    "sctp_setsockopt_fragment_interleave": ["setsockopt$inet_sctp6_SCTP_FRAGMENT_INTERLEAVE",
-                                            "setsockopt$inet_sctp_SCTP_FRAGMENT_INTERLEAVE"],
-    "sctp_setsockopt_maxburst": ["setsockopt$inet_sctp_SCTP_MAX_BURST",
-                                 "setsockopt$inet_sctp6_SCTP_MAX_BURST"],
-    "sctp_setsockopt_auth_chunk": ["setsockopt$inet_sctp_SCTP_AUTH_CHUNK",
-                                   "setsockopt$inet_sctp6_SCTP_AUTH_CHUNK"],
-    "sctp_setsockopt_hmac_ident": ["setsockopt$inet_sctp_SCTP_HMAC_IDENT",
-                                   "setsockopt$inet_sctp6_SCTP_HMAC_IDENT"],
-    "sctp_setsockopt_auth_key": ["setsockopt$inet_sctp_SCTP_AUTH_KEY",
-                                 "setsockopt$inet_sctp6_SCTP_AUTH_KEY"],
-    "sctp_setsockopt_active_key": ["setsockopt$inet_sctp_SCTP_AUTH_ACTIVE_KEY",
-                                   "setsockopt$inet_sctp6_SCTP_AUTH_ACTIVE_KEY"],
-    "sctp_setsockopt_del_key": ["setsockopt$inet_sctp_SCTP_AUTH_DELETE_KEY",
-                                "setsockopt$inet_sctp6_SCTP_AUTH_DELETE_KEY"],
-    "sctp_setsockopt_deactivate_key": ["setsockopt$inet_sctp_SCTP_AUTH_DEACTIVATE_KEY",
-                                       "setsockopt$inet_sctp6_SCTP_AUTH_DEACTIVATE_KEY"],
-    "sctp_setsockopt_auto_asconf": ["setsockopt$inet_sctp_SCTP_AUTO_ASCONF",
-                                    "setsockopt$inet_sctp6_SCTP_AUTO_ASCONF"],
-    "sctp_setsockopt_paddr_thresholds": ["setsockopt$inet_sctp6_SCTP_PEER_ADDR_THLDS",
-                                         "setsockopt$inet_sctp_SCTP_PEER_ADDR_THLDS"],
-    "sctp_setsockopt_recvrcvinfo": ["setsockopt$inet_sctp6_SCTP_RECVRCVINFO",
-                                    "setsockopt$inet_sctp_SCTP_RECVRCVINFO"],
-    "sctp_setsockopt_recvnxtinfo": ["setsockopt$inet_sctp6_SCTP_RECVNXTINFO",
-                                    "setsockopt$inet_sctp_SCTP_RECVNXTINFO"],
-    "sctp_setsockopt_pr_supported": ["setsockopt$inet_sctp_SCTP_PR_SUPPORTED",
-                                     "setsockopt$inet_sctp6_SCTP_PR_SUPPORTED"],
-    "sctp_setsockopt_default_prinfo": ["setsockopt$inet_sctp_SCTP_DEFAULT_PRINFO",
-                                       "setsockopt$inet_sctp6_SCTP_DEFAULT_PRINFO"],
-    "sctp_setsockopt_reconfig_supported": ["setsockopt$inet_sctp_SCTP_RECONFIG_SUPPORTED",
-                                           "setsockopt$inet_sctp6_SCTP_RECONFIG_SUPPORTED"],
-    "sctp_setsockopt_enable_strreset": ["setsockopt$inet_sctp6_SCTP_ENABLE_STREAM_RESET",
-                                        "setsockopt$inet_sctp_SCTP_ENABLE_STREAM_RESET"],
-    "sctp_setsockopt_reset_streams": ["setsockopt$inet_sctp6_SCTP_RESET_STREAMS",
-                                      "setsockopt$inet_sctp_SCTP_RESET_STREAMS"],
-    "sctp_setsockopt_reset_assoc": ["setsockopt$inet_sctp6_SCTP_RESET_ASSOC",
-                                    "setsockopt$inet_sctp_SCTP_RESET_ASSOC"],
-
-    "sctp_getsockopt_disable_fragments": ["getsockopt$inet_sctp6_SCTP_DISABLE_FRAGMENTS",
-                                          "getsockopt$inet_sctp_SCTP_DISABLE_FRAGMENTS"],
-    "sctp_getsockopt_events": ["getsockopt$inet_sctp_SCTP_EVENTS",
-                               "getsockopt$inet_sctp6_SCTP_EVENTS"],
-    "sctp_getsockopt_autoclose": ["getsockopt$inet_sctp_SCTP_AUTOCLOSE",
-                                  "getsockopt$inet_sctp6_SCTP_AUTOCLOSE"],
-    "sctp_getsockopt_peer_addr_params": ["getsockopt$inet_sctp_SCTP_PEER_ADDR_PARAMS",
-                                         "getsockopt$inet_sctp6_SCTP_PEER_ADDR_PARAMS"],
-    "sctp_getsockopt_delayed_ack": ["getsockopt$inet_sctp_SCTP_DELAYED_SACK",
-                                    "getsockopt$inet_sctp6_SCTP_DELAYED_SACK"],
-    "sctp_getsockopt_partial_delivery_point": ["getsockopt$inet_sctp_SCTP_PARTIAL_DELIVERY_POINT",
-                                               "getsockopt$inet_sctp6_SCTP_PARTIAL_DELIVERY_POINT"],
-    "sctp_getsockopt_initmsg": ["getsockopt$inet_sctp_SCTP_INITMSG",
-                                "getsockopt$inet_sctp6_SCTP_INITMSG"],
-    "sctp_getsockopt_default_send_param": ["getsockopt$inet_sctp_SCTP_DEFAULT_SEND_PARAM",
-                                           "getsockopt$inet_sctp6_SCTP_DEFAULT_SEND_PARAM"],
-    "sctp_getsockopt_default_sndinfo": ["getsockopt$inet_sctp_SCTP_DEFAULT_SNDINFO",
-                                        "getsockopt$inet_sctp6_SCTP_DEFAULT_SNDINFO"],
-    "sctp_getsockopt_primary_addr": ["getsockopt$inet_sctp_SCTP_PRIMARY_ADDR",
-                                     "getsockopt$inet_sctp6_SCTP_PRIMARY_ADDR"],
-    "sctp_getsockopt_nodelay": ["getsockopt$inet_sctp_SCTP_NODELAY",
-                                "getsockopt$inet_sctp6_SCTP_NODELAY"],
-    "sctp_getsockopt_rtoinfo": ["getsockopt$inet_sctp_SCTP_RTOINFO",
-                                "getsockopt$inet_sctp6_SCTP_RTOINFO"],
-    "sctp_getsockopt_scheduler": ["getsockopt$inet_sctp_SCTP_STREAM_SCHEDULER",
-                                  "getsockopt$inet_sctp6_SCTP_STREAM_SCHEDULER"],
-    "sctp_getsockopt_scheduler_value": ["getsockopt$inet_sctp_SCTP_STREAM_SCHEDULER_VALUE",
-                                        "getsockopt$inet_sctp6_SCTP_STREAM_SCHEDULER_VALUE"],
-    "sctp_getsockopt_associnfo": ["getsockopt$inet_sctp6_SCTP_ASSOCINFO",
-                                  "getsockopt$inet_sctp_SCTP_ASSOCINFO"],
-    "sctp_getsockopt_mappedv4": ["getsockopt$inet_sctp6_SCTP_I_WANT_MAPPED_V4_ADDR",
-                                 "getsockopt$inet_sctp_SCTP_I_WANT_MAPPED_V4_ADDR"],
-    "sctp_getsockopt_maxseg": ["getsockopt$inet_sctp_SCTP_MAXSEG",
-                               "getsockopt$inet_sctp6_SCTP_MAXSEG"],
-    "sctp_getsockopt_adaptation_layer": ["getsockopt$inet_sctp6_SCTP_ADAPTATION_LAYER",
-                                         "getsockopt$inet_sctp_SCTP_ADAPTATION_LAYER"],
-    "sctp_getsockopt_context": ["getsockopt$inet_sctp6_SCTP_CONTEXT",
-                                "getsockopt$inet_sctp_SCTP_CONTEXT"],
-    "sctp_getsockopt_fragment_interleave": ["getsockopt$inet_sctp6_SCTP_FRAGMENT_INTERLEAVE",
-                                            "getsockopt$inet_sctp_SCTP_FRAGMENT_INTERLEAVE"],
-    "sctp_getsockopt_maxburst": ["getsockopt$inet_sctp_SCTP_MAX_BURST",
-                                 "getsockopt$inet_sctp6_SCTP_MAX_BURST"],
-    "sctp_getsockopt_hmac_ident": ["getsockopt$inet_sctp_SCTP_HMAC_IDENT",
-                                   "getsockopt$inet_sctp6_SCTP_HMAC_IDENT"],
-    "sctp_getsockopt_active_key": ["getsockopt$inet_sctp_SCTP_AUTH_ACTIVE_KEY",
-                                   "getsockopt$inet_sctp6_SCTP_AUTH_ACTIVE_KEY"],
-    "sctp_getsockopt_auto_asconf": ["getsockopt$inet_sctp_SCTP_AUTO_ASCONF",
-                                    "getsockopt$inet_sctp6_SCTP_AUTO_ASCONF"],
-    "sctp_getsockopt_paddr_thresholds": ["getsockopt$inet_sctp6_SCTP_PEER_ADDR_THLDS",
-                                         "getsockopt$inet_sctp_SCTP_PEER_ADDR_THLDS"],
-    "sctp_getsockopt_recvrcvinfo": ["getsockopt$inet_sctp6_SCTP_RECVRCVINFO",
-                                    "getsockopt$inet_sctp_SCTP_RECVRCVINFO"],
-    "sctp_getsockopt_recvnxtinfo": ["getsockopt$inet_sctp6_SCTP_RECVNXTINFO",
-                                    "getsockopt$inet_sctp_SCTP_RECVNXTINFO"],
-    "sctp_getsockopt_pr_supported": ["getsockopt$inet_sctp_SCTP_PR_SUPPORTED",
-                                     "getsockopt$inet_sctp6_SCTP_PR_SUPPORTED"],
-    "sctp_getsockopt_default_prinfo": ["getsockopt$inet_sctp_SCTP_DEFAULT_PRINFO",
-                                       "getsockopt$inet_sctp6_SCTP_DEFAULT_PRINFO"],
-    "sctp_getsockopt_reconfig_supported": ["getsockopt$inet_sctp_SCTP_RECONFIG_SUPPORTED",
-                                           "getsockopt$inet_sctp6_SCTP_RECONFIG_SUPPORTED"],
-    "sctp_getsockopt_sctp_status": ["getsockopt$inet_sctp6_SCTP_STATUS",
-                                    "getsockopt$inet_sctp_SCTP_STATUS"],
-    "sctp_getsockopt_peeloff": ["getsockopt$inet_sctp6_SCTP_SOCKOPT_PEELOFF",
-                                "getsockopt$inet_sctp_SCTP_SOCKOPT_PEELOFF"],
-    "sctp_getsockopt_peer_addrs": ["getsockopt$inet_sctp_SCTP_GET_PEER_ADDRS",
-                                   "getsockopt$inet_sctp6_SCTP_GET_PEER_ADDRS"],
-    "sctp_getsockopt_local_addrs": ["getsockopt$inet_sctp_SCTP_GET_LOCAL_ADDRS",
-                                    "getsockopt$inet_sctp6_SCTP_GET_LOCAL_ADDRS"],
-    "sctp_getsockopt_connectx3": ["getsockopt$inet_sctp6_SCTP_SOCKOPT_CONNECTX3",
-                                  "getsockopt$inet_sctp_SCTP_SOCKOPT_CONNECTX3"],
-    "sctp_getsockopt_peer_addr_info": ["getsockopt$inet_sctp_SCTP_GET_PEER_ADDR_INFO",
-                                       "getsockopt$inet_sctp6_SCTP_GET_PEER_ADDR_INFO"],
-    "sctp_getsockopt_local_auth_chunks": ["getsockopt$inet_sctp_SCTP_LOCAL_AUTH_CHUNKS",
-                                          "getsockopt$inet_sctp6_SCTP_LOCAL_AUTH_CHUNKS"],
-    "sctp_getsockopt_assoc_number": ["getsockopt$inet_sctp6_SCTP_GET_ASSOC_NUMBER",
-                                     "getsockopt$inet_sctp_SCTP_GET_ASSOC_NUMBER"],
-    "sctp_getsockopt_assoc_ids": ["getsockopt$inet_sctp6_SCTP_GET_ASSOC_ID_LIST",
-                                  "getsockopt$inet_sctp_SCTP_GET_ASSOC_ID_LIST"],
-    "sctp_getsockopt_assoc_stats": ["getsockopt$inet_sctp_SCTP_GET_ASSOC_STATS",
-                                    "getsockopt$inet_sctp6_SCTP_GET_ASSOC_STATS"],
-    "sctp_getsockopt_pr_assocstatus": ["getsockopt$inet_sctp6_SCTP_PR_ASSOC_STATUS",
-                                       "getsockopt$inet_sctp_SCTP_PR_ASSOC_STATUS"],
-    "sctp_getsockopt_pr_streamstatus": ["getsockopt$inet_sctp_SCTP_PR_STREAM_STATUS",
-                                        "getsockopt$inet_sctp6_SCTP_PR_STREAM_STATUS"],
-    "sctp_getsockopt_enable_strreset": ["getsockopt$inet_sctp_SCTP_ENABLE_STREAM_RESET",
-                                        "getsockopt$inet_sctp6_SCTP_ENABLE_STREAM_RESET"],
-    "sctp_getsockopt_peer_auth_chunks": ["getsockopt$inet_sctp6_SCTP_PEER_AUTH_CHUNKS",
-                                         "getsockopt$inet_sctp_SCTP_PEER_AUTH_CHUNKS"],
-
-    # __tun_chr_ioctl
-    "tun_set_iff": ["ioctl$TUNSETIFF"],
-    "tun_get_iff": ["ioctl$TUNGETIFF"],
-    "tun_set_queue": ["ioctl$TUNSETQUEUE"],
-
-    # kvm_vm_ioctl
-    "kvm_vm_ioctl_set_memory_region": ["ioctl$KVM_SET_USER_MEMORY_REGION"],
-    "kvm_vm_ioctl_enable_cap_generic": ["ioctl$KVM_ENABLE_CAP"],
-    "kvm_vm_ioctl_create_vcpu": ["ioctl$KVM_CREATE_VCPU"],
-    "kvm_vm_ioctl_get_dirty_log": ["ioctl$KVM_GET_DIRTY_LOG"],
-    "kvm_vm_ioctl_register_coalesced_mmio": ["ioctl$KVM_REGISTER_COALESCED_MMIO"],
-    "kvm_vm_ioctl_unregister_coalesced_mmio": ["ioctl$KVM_UNREGISTER_COALESCED_MMIO"],
-    "kvm_vm_ioctl": ["ioctl$KVM_IRQFD"],
-
-    # __f2fs_ioctl
-
-    "drm_setmaster_ioctl": ["ioctl$DRM_IOCTL_SET_MASTER"],
-    "drm_dropmaster_ioctl": ["ioctl$DRM_IOCTL_DROP_MASTER"],
-    "drm_authmagic": ["ioctl$DRM_IOCTL_AUTH_MAGIC"],
-    "drm_legacy_modeset_ctl_ioctl": ["ioctl$DRM_IOCTL_MODESET_CTL"],
-    "drm_gem_close_ioctl": ["ioctl$DRM_IOCTL_GEM_CLOSE"],
-    "drm_setclientcap": ["ioctl$DRM_IOCTL_SET_CLIENT_CAP"],
-    "drm_getmagic": ["ioctl$DRM_IOCTL_GET_MAGIC"],
-    "drm_getstats": ["ioctl$DRM_IOCTL_GET_STATS"],
-    "drm_mode_rmfb_ioctl": ["ioctl$DRM_IOCTL_MODE_RMFB"],
-    "drm_mode_destroy_dumb_ioctl": ["ioctl$DRM_IOCTL_MODE_DESTROY_DUMB"],
-    "drm_mode_destroyblob_ioctl": ["ioctl$DRM_IOCTL_MODE_DESTROYPROPBLOB"],
-    "drm_mode_revoke_lease_ioctl": ["ioctl$DRM_IOCTL_MODE_REVOKE_LEASE"],
-    "drm_gem_flink_ioctl": ["ioctl$DRM_IOCTL_GEM_FLINK"],
-    "drm_syncobj_create_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_CREATE"],
-    "drm_syncobj_destroy_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_DESTROY"],
-    "drm_prime_handle_to_fd_ioctl": ["ioctl$DRM_IOCTL_PRIME_HANDLE_TO_FD"],
-    "drm_prime_fd_to_handle_ioctl": ["ioctl$DRM_IOCTL_PRIME_FD_TO_HANDLE"],
-    "drm_getunique": ["ioctl$DRM_IOCTL_GET_UNIQUE"],
-    "drm_setversion": ["ioctl$DRM_IOCTL_SET_VERSION"],
-    "drm_gem_open_ioctl": ["ioctl$DRM_IOCTL_GEM_OPEN"],
-    "drm_getcap": ["ioctl$DRM_IOCTL_GET_CAP"],
-    "drm_connector_property_set_ioctl": ["ioctl$DRM_IOCTL_MODE_SETPROPERTY"],
-    "drm_mode_getblob_ioctl": ["ioctl$DRM_IOCTL_MODE_GETPROPBLOB"],
-    "drm_mode_mmap_dumb_ioctl": ["ioctl$DRM_IOCTL_MODE_MAP_DUMB"],
-    "drm_mode_getplane_res": ["ioctl$DRM_IOCTL_MODE_GETPLANERESOURCES"],
-    "drm_mode_createblob_ioctl": ["ioctl$DRM_IOCTL_MODE_CREATEPROPBLOB"],
-    "drm_syncobj_reset_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_RESET"],
-    "drm_syncobj_signal_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_SIGNAL"],
-    "drm_mode_list_lessees_ioctl": ["ioctl$DRM_IOCTL_MODE_LIST_LESSEES"],
-    "drm_mode_get_lease_ioctl": ["ioctl$DRM_IOCTL_MODE_GET_LEASE"],
-    "drm_mode_getencoder": ["ioctl$DRM_IOCTL_MODE_GETENCODER"],
-    "drm_wait_vblank_ioctl": ["ioctl$DRM_IOCTL_WAIT_VBLANK"],
-    "drm_mode_page_flip_ioctl": ["ioctl$DRM_IOCTL_MODE_PAGE_FLIP"],
-    "drm_mode_dirtyfb_ioctl": ["ioctl$DRM_IOCTL_MODE_DIRTYFB"],
-    "drm_mode_obj_set_property_ioctl": ["ioctl$DRM_IOCTL_MODE_OBJ_SETPROPERTY"],
-    "drm_mode_create_lease_ioctl": ["ioctl$DRM_IOCTL_MODE_CREATE_LEASE"],
-    "drm_syncobj_query_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_QUERY"],
-    "drm_syncobj_timeline_signal_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_TIMELINE_SIGNAL"],
-    "drm_mode_cursor_ioctl": ["ioctl$DRM_IOCTL_MODE_CURSOR"],
-    "drm_mode_getfb": ["ioctl$DRM_IOCTL_MODE_GETFB"],
-    "drm_mode_addfb_ioctl": ["ioctl$DRM_IOCTL_MODE_ADDFB"],
-    "drm_mode_gamma_get_ioctl": ["ioctl$DRM_IOCTL_MODE_GETGAMMA"],
-    "drm_mode_gamma_set_ioctl": ["ioctl$DRM_IOCTL_MODE_SETGAMMA"],
-    "drm_mode_create_dumb_ioctl": ["ioctl$DRM_IOCTL_MODE_CREATE_DUMB"],
-    "drm_mode_getplane": ["ioctl$DRM_IOCTL_MODE_GETPLANE"],
-    "drm_mode_obj_get_properties_ioctl": ["ioctl$DRM_IOCTL_MODE_OBJ_GETPROPERTIES"],
-    "drm_syncobj_wait_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_WAIT"],
-    "drm_syncobj_transfer_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_TRANSFER"],
-    "drm_mode_cursor2_ioctl": ["ioctl$DRM_IOCTL_MODE_CURSOR2"],
-    "drm_getclient": ["ioctl$DRM_IOCTL_GET_CLIENT"],
-    "drm_syncobj_timeline_wait_ioctl": ["ioctl$DRM_IOCTL_SYNCOBJ_TIMELINE_WAIT"],
-    "drm_mode_setplane": ["ioctl$DRM_IOCTL_MODE_SETPLANE"],
-    "drm_mode_atomic_ioctl": ["ioctl$DRM_IOCTL_MODE_ATOMIC"],
-    "drm_version": ["ioctl$DRM_IOCTL_VERSION"],
-    "drm_mode_getresources": ["ioctl$DRM_IOCTL_MODE_GETRESOURCES"],
-    "drm_mode_getproperty_ioctl": ["ioctl$DRM_IOCTL_MODE_GETPROPERTY"],
-    "drm_mode_getconnector": ["ioctl$DRM_IOCTL_MODE_GETCONNECTOR"],
-    "drm_mode_getcrtc": ["ioctl$DRM_IOCTL_MODE_GETCRTC"],
-    "drm_mode_setcrtc": ["ioctl$DRM_IOCTL_MODE_SETCRTC"],
-    "drm_mode_addfb2_ioctl": ["ioctl$DRM_IOCTL_MODE_ADDFB2"],
-
-
-    "ptp_read": ["read$ptp"],
-    "fb_read": ["read$fb"],
-    "hidraw_read": ["read$hidraw"],
-    "usbdev_read": ["read$usbfs"],
-    "mon_bin_read": ["read$usbmon"],
-    "snapshot_read": ["read$snapshot"],
-    "rfkill_fop_read": ["read$rfkill"],
-    "msr_read": ["read$msr"],
-
-    "ucma_create_id": ["write$RDMA_USER_CM_CMD_CREATE_ID"],
-    "ucma_destroy_id": ["write$RDMA_USER_CM_CMD_DESTROY_ID"],
-    "ucma_bind_ip": ["write$RDMA_USER_CM_CMD_BIND_IP"],
-    "ucma_resolve_ip": ["write$RDMA_USER_CM_CMD_RESOLVE_IP"],
-    "ucma_resolve_route": ["write$RDMA_USER_CM_CMD_RESOLVE_ROUTE"],
-    "ucma_query_route": ["write$RDMA_USER_CM_CMD_QUERY_ROUTE"],
-    "ucma_connect": ["write$RDMA_USER_CM_CMD_CONNECT"],
-    "ucma_listen": ["write$RDMA_USER_CM_CMD_LISTEN"],
-    "ucma_accept": ["write$RDMA_USER_CM_CMD_ACCEPT"],
-    "ucma_reject": ["write$RDMA_USER_CM_CMD_REJECT"],
-    "ucma_disconnect": ["write$RDMA_USER_CM_CMD_DISCONNECT"],
-    "ucma_init_qp_attr": ["write$RDMA_USER_CM_CMD_INIT_QP_ATTR"],
-    "ucma_get_event": ["write$RDMA_USER_CM_CMD_GET_EVENT"],
-    "ucma_set_option": ["write$RDMA_USER_CM_CMD_SET_OPTION"],
-    "ucma_notify": ["write$RDMA_USER_CM_CMD_NOTIFY"],
-    "ucma_join_ip_multicast": ["write$RDMA_USER_CM_CMD_JOIN_IP_MCAST"],
-    "ucma_leave_multicast": ["write$RDMA_USER_CM_CMD_LEAVE_MCAST"],
-    "ucma_migrate_id": ["write$RDMA_USER_CM_CMD_MIGRATE_ID"],
-    "ucma_query": ["write$RDMA_USER_CM_CMD_QUERY"],
-    "ucma_bind": ["write$RDMA_USER_CM_CMD_BIND"],
-    "ucma_resolve_addr": ["write$RDMA_USER_CM_CMD_RESOLVE_ADDR"],
-    "ucma_join_multicast": ["write$RDMA_USER_CM_CMD_JOIN_MCAST"],
-
-    "autofs_dev_ioctl_version": ["ioctl$AUTOFS_DEV_IOCTL_VERSION"],
-    "autofs_dev_ioctl_protover": ["ioctl$AUTOFS_DEV_IOCTL_PROTOVER"],
-    "autofs_dev_ioctl_protosubver": ["ioctl$AUTOFS_DEV_IOCTL_PROTOSUBVER"],
-    "autofs_dev_ioctl_openmount": ["ioctl$AUTOFS_DEV_IOCTL_OPENMOUNT"],
-    "autofs_dev_ioctl_closemount": ["ioctl$AUTOFS_DEV_IOCTL_CLOSEMOUNT"],
-    "autofs_dev_ioctl_ready": ["ioctl$AUTOFS_DEV_IOCTL_READY"],
-    "autofs_dev_ioctl_fail": ["ioctl$AUTOFS_DEV_IOCTL_FAIL"],
-    "autofs_dev_ioctl_setpipefd": ["ioctl$AUTOFS_DEV_IOCTL_SETPIPEFD"],
-    "autofs_dev_ioctl_catatonic": ["ioctl$AUTOFS_DEV_IOCTL_CATATONIC"],
-    "autofs_dev_ioctl_timeout": ["ioctl$AUTOFS_DEV_IOCTL_TIMEOUT"],
-    "autofs_dev_ioctl_requester": ["ioctl$AUTOFS_DEV_IOCTL_REQUESTER"],
-    "autofs_dev_ioctl_expire": ["ioctl$AUTOFS_DEV_IOCTL_EXPIRE"],
-    "autofs_dev_ioctl_askumount": ["ioctl$AUTOFS_DEV_IOCTL_ASKUMOUNT"],
-    "autofs_dev_ioctl_ismountpoint": ["ioctl$AUTOFS_DEV_IOCTL_ISMOUNTPOINT"],
-
-    "snd_seq_ioctl_set_queue_tempo": ["ioctl$SNDRV_SEQ_IOCTL_SET_QUEUE_TEMPO"],
-    "snd_seq_ioctl_remove_events": ["ioctl$SNDRV_SEQ_IOCTL_REMOVE_EVENTS"],
-    "snd_seq_ioctl_set_queue_client": ["ioctl$SNDRV_SEQ_IOCTL_SET_QUEUE_CLIENT"],
-    "snd_seq_ioctl_subscribe_port": ["ioctl$SNDRV_SEQ_IOCTL_SUBSCRIBE_PORT"],
-    "snd_seq_ioctl_unsubscribe_port": ["ioctl$SNDRV_SEQ_IOCTL_UNSUBSCRIBE_PORT"],
-    "snd_seq_ioctl_set_client_pool": ["ioctl$SNDRV_SEQ_IOCTL_SET_CLIENT_POOL"],
-    "snd_seq_ioctl_set_queue_timer": ["ioctl$SNDRV_SEQ_IOCTL_SET_QUEUE_TIMER"],
-    "snd_seq_ioctl_delete_queue": ["ioctl$SNDRV_SEQ_IOCTL_DELETE_QUEUE"],
-    "snd_seq_ioctl_delete_port": ["ioctl$SNDRV_SEQ_IOCTL_DELETE_PORT"],
-    "snd_seq_ioctl_set_port_info": ["ioctl$SNDRV_SEQ_IOCTL_SET_PORT_INFO"],
-    "snd_seq_ioctl_set_client_info": ["ioctl$SNDRV_SEQ_IOCTL_SET_CLIENT_INFO"],
-    "snd_seq_ioctl_pversion": ["ioctl$SNDRV_SEQ_IOCTL_PVERSION"],
-    "snd_seq_ioctl_client_id": ["ioctl$SNDRV_SEQ_IOCTL_CLIENT_ID"],
-    "snd_seq_ioctl_running_mode": ["ioctl$SNDRV_SEQ_IOCTL_RUNNING_MODE"],
-    "snd_seq_ioctl_get_queue_tempo": ["ioctl$SNDRV_SEQ_IOCTL_GET_QUEUE_TEMPO"],
-    "snd_seq_ioctl_system_info": ["ioctl$SNDRV_SEQ_IOCTL_SYSTEM_INFO"],
-    "snd_seq_ioctl_get_queue_client": ["ioctl$SNDRV_SEQ_IOCTL_GET_QUEUE_CLIENT"],
-    "snd_seq_ioctl_get_subscription": ["ioctl$SNDRV_SEQ_IOCTL_GET_SUBSCRIPTION"],
-    "snd_seq_ioctl_get_client_pool": ["ioctl$SNDRV_SEQ_IOCTL_GET_CLIENT_POOL"],
-    "snd_seq_ioctl_query_subs": ["ioctl$SNDRV_SEQ_IOCTL_QUERY_SUBS"],
-    "snd_seq_ioctl_get_queue_status": ["ioctl$SNDRV_SEQ_IOCTL_GET_QUEUE_STATUS"],
-    "snd_seq_ioctl_get_queue_timer": ["ioctl$SNDRV_SEQ_IOCTL_GET_QUEUE_TIMER"],
-    "snd_seq_ioctl_create_queue": ["ioctl$SNDRV_SEQ_IOCTL_CREATE_QUEUE"],
-    "snd_seq_ioctl_get_queue_info": ["ioctl$SNDRV_SEQ_IOCTL_GET_QUEUE_INFO"],
-    "snd_seq_ioctl_set_queue_info": ["ioctl$SNDRV_SEQ_IOCTL_SET_QUEUE_INFO"],
-    "snd_seq_ioctl_get_named_queue": ["ioctl$SNDRV_SEQ_IOCTL_GET_NAMED_QUEUE"],
-    "snd_seq_ioctl_create_port": ["ioctl$SNDRV_SEQ_IOCTL_CREATE_PORT"],
-    "snd_seq_ioctl_get_port_info": ["ioctl$SNDRV_SEQ_IOCTL_GET_PORT_INFO"],
-    "snd_seq_ioctl_query_next_port": ["ioctl$SNDRV_SEQ_IOCTL_QUERY_NEXT_PORT"],
-    "snd_seq_ioctl_get_client_info": ["ioctl$SNDRV_SEQ_IOCTL_GET_CLIENT_INFO"],
-    "snd_seq_ioctl_query_next_client": ["ioctl$SNDRV_SEQ_IOCTL_QUERY_NEXT_CLIENT"],
-
-    "seccomp_get_action_avail": ["seccomp$SECCOMP_GET_ACTION_AVAIL"],
-    "seccomp_get_notif_sizes": ["seccomp$SECCOMP_GET_NOTIF_SIZES"],
-    "seccomp_set_mode_filter": ["seccomp$SECCOMP_SET_MODE_FILTER"],
-    "seccomp_set_mode_strict": ["seccomp$SECCOMP_SET_MODE_STRICT"],
-
-}
-
-
-class kernel2Syscall:
-
+class SyscallResolver:
     def __init__(self) -> None:
-        print(len(kernel_func_to_syscall))
-        correct_mapping = set()
         with open('./mysyzdirect/myKernelCode2Syscall.json', 'r') as f:
-            self.kernelCode2Syscall = json.load(f)
-            for kernelfunc, bbId2syscall in self.kernelCode2Syscall.items():
-                syscalls = set()
-                for bbId, calls in bbId2syscall.items():
-                    syscalls.update(calls)
-                if len(syscalls) == 1:
-                    only_syscall = syscalls.pop()
-                    # if '$' in only_syscall:
-                    correct_mapping.add(only_syscall)
-                        # print("\"{}\": [\"{}\"],".format(kernelfunc, only_syscall))
-        print(len(correct_mapping))
-        for syscall in all_syscall:
-            if syscall not in correct_mapping:
-                print('Unmatched: ', syscall)
+            self.kernel_to_syscall_syzdirect = json.load(f)
+
+        csv_data = pd.read_csv('./mysyzdirect/syscall_kernel_map.csv', header=None, names=['Syscall', 'Kernelfunc'], na_values='', keep_default_na=False)
+        csv_data.fillna('', inplace=True)
+        self.kernel_func_to_syscall = {}
+        for index, row in csv_data.iterrows():
+            kernel_funcs = row['Kernelfunc']
+            syscall = row['Syscall']
+
+            for func in kernel_funcs.split(','):
+                if func not in self.kernel_func_to_syscall:
+                    self.kernel_func_to_syscall[func] = []
+                self.kernel_func_to_syscall[func].append(syscall)
+
+        with open('./mysyzdirect/syzcall_to_syscall.json', 'r') as f:
+            syzcall_to_syscall = json.load(f)
+
+        self.syscall_to_syzcall = {}
+        for syzcall in syzcall_to_syscall:
+            for syscall in syzcall_to_syscall[syzcall]:
+                if syscall not in self.syscall_to_syzcall:
+                    self.syscall_to_syzcall[syscall] = set()
+                self.syscall_to_syzcall[syscall].update(syscall)
+
 
     @staticmethod
     def two_custom_intersection(set1, set2):
@@ -3984,64 +3567,63 @@ class kernel2Syscall:
         result = sets[0]
         for s in sets[1:]:
             # Replace the line below with your custom logic
-            result = kernel2Syscall.two_custom_intersection(result, s)
+            result = SyscallResolver.two_custom_intersection(result, s)
 
         return result
 
-    def parse_syscall(self, call_trace, precise=True):
+    def parse_syscall_from_trace(self, call_trace: str, precise=True) -> []:
         potential_calls = set()
+        potential_calls.update(self.parse_syscall_from_trace_manually(call_trace))
         if precise:
-            potential_calls.update(self.parse_syscall_by_codeMap(call_trace))
-            potential_calls.add(self.parse_syscall_by_trace(call_trace))
-            for kernelCall, syscalls in kernel_func_to_syscall.items():
-                if kernelCall in call_trace:
-                    potential_calls = self.two_custom_intersection(potential_calls, syscalls)
-
-        else:
-            potential_calls.add(self.parse_syscall_by_trace(call_trace))
-
-
+            # potential_calls.update(self.parse_syscall_from_trace_via_syzdirect(call_trace))
+            potential_calls.update(self.parse_syscall_from_trace(call_trace))
 
         return list(potential_calls)
 
-    def parse_syscall_by_trace(self, call_trace):
+    def parse_syscall_from_trace_manually(self, call_trace: str) -> []:
         """
         given a call trace, find the related syscall that trigger the crash
         """
+        crashed_syscall = ''
+        candidate_syscalls = set()
         for line in reversed(call_trace.split('\n')):
             line = line.strip()
             if line.startswith('SyS_'):
                 crashed_syscall = line[4:line.find('+')]
-                return crashed_syscall
+                break
             elif line.startswith('__x64_sys_'):
                 crashed_syscall = line[10:line.find('+')]
-                return crashed_syscall
+                break
             elif line.startswith('__do_sys_'):
                 if '+' in line:
                     crashed_syscall = line[9:line.find('+')]
                 else:
                     crashed_syscall = line[9:line.find(' ')]
-                return crashed_syscall
+                break
             elif line.startswith('__sys_'):
                 crashed_syscall = line[6:line.find('+')]
-                return crashed_syscall
+                break
             elif line.startswith('__arm64_sys_'):
                 crashed_syscall = line[12:line.find('+')]
-                return crashed_syscall
+                break
             elif line.startswith('__arm64_compat_sys_'):
                 crashed_syscall = line[19: line.find('+')]
-                return crashed_syscall
+                break
             elif line.startswith('ksys_'):
                 if '+' in line:
                     crashed_syscall = line[5:line.find('+')]
                 else:
                     crashed_syscall = line[5:line.find(' ')]
-                return crashed_syscall
-        return ""
+                break
+        if crashed_syscall != '':
+            candidate_syscalls.add(crashed_syscall)
+            if crashed_syscall in self.syscall_to_syzcall:
+                candidate_syscalls.update(self.syscall_to_syzcall[crashed_syscall])
+        return list(candidate_syscalls)
 
-    def parse_syscall_by_codeMap(self, call_trace):
+    def parse_syscall_from_trace(self, call_trace: str) -> []:
         call_trace.strip()
-        candidateSyscalls = set()
+        candidate_syscalls = set()
         for line in call_trace.split('\n'):
             line = line.strip()
             if line == '':
@@ -4049,19 +3631,40 @@ class kernel2Syscall:
             func_name = line.split()[0]
             if '+' in func_name:
                 func_name = func_name[:func_name.find('+')]
-            if func_name in self.kernelCode2Syscall:
-                bbId2syscall = self.kernelCode2Syscall[func_name]
-                for bbId, calls in bbId2syscall.items():
-                    candidateSyscalls.update(calls)
+
+            if func_name in self.kernel_func_to_syscall:
+                candidate_syscalls = self.two_custom_intersection(candidate_syscalls,
+                                                                  self.kernel_func_to_syscall[func_name])
                 break
 
-        if len(candidateSyscalls) == 0:
-            return [self.parse_syscall_by_trace(call_trace)]
-        return list(candidateSyscalls)
+        if len(candidate_syscalls) == 0:
+            return self.parse_syscall_from_trace_manually(call_trace)
+        return list(candidate_syscalls)
+
+    def parse_syscall_from_trace_via_syzdirect(self, call_trace: str) -> []:
+        call_trace.strip()
+        candidate_syscalls = set()
+        for line in call_trace.split('\n'):
+            line = line.strip()
+            if line == '':
+                continue
+            func_name = line.split()[0]
+            if '+' in func_name:
+                func_name = func_name[:func_name.find('+')]
+
+            if func_name in self.kernel_to_syscall_syzdirect:
+                bb_to_syscall = self.kernel_to_syscall_syzdirect[func_name]
+                for bb_id, calls in bb_to_syscall.items():
+                    candidate_syscalls.update(calls)
+                break
+
+        if len(candidate_syscalls) == 0:
+            return self.parse_syscall_from_trace_manually(call_trace)
+        return list(candidate_syscalls)
 
 
 if __name__ == '__main__':
-    code2Call = kernel2Syscall()
+    resolver = SyscallResolver()
     call_trace = \
         """
  dccp_sendmsg+0x968/0xcc0 net/dccp/proto.c:801
@@ -4078,4 +3681,4 @@ if __name__ == '__main__':
  do_syscall_64+0x3f/0x110 arch/x86/entry/common.c:82
  entry_SYSCALL_64_after_hwframe+0x63/0x6b
     """
-    print(code2Call.parse_syscall(call_trace))
+    print(resolver.parse_syscall_from_trace(call_trace))

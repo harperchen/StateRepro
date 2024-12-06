@@ -15,9 +15,9 @@ from datetime import datetime
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 
-code2Syscall = kernel2Syscall()
+resolver = SyscallResolver()
 
-class CommitInfo:
+class CrashInfo:
     def __init__(self, time, commit,
                  console_log=None, console_log_link=None,
                  report=None, report_link=None,
@@ -191,46 +191,46 @@ class CommitInfo:
 
         if "WARNING" in report or "GPF" in report or "kernel BUG at" in report \
                 or "BUG: unable to handle" in report:
-            found = CommitInfo.get_call_trace(warn, report)
+            found = CrashInfo.get_call_trace(warn, report)
             if found:
                 # print(found.group(1)+found.group(2))
                 return found.group(1) + found.group(2)
-            found = CommitInfo.get_call_trace(warn2, report)
+            found = CrashInfo.get_call_trace(warn2, report)
             if found:
                 # print(found.group(1)+found.group(2))
                 return found.group(1) + found.group(2)
-            found = CommitInfo.get_call_trace(warn3, report)
+            found = CrashInfo.get_call_trace(warn3, report)
             if found:
                 # print(found.group(1)+found.group(2))
                 return found.group(1) + found.group(2)
-            found = CommitInfo.get_call_trace(warn4, report)
+            found = CrashInfo.get_call_trace(warn4, report)
             if found:
                 # print(found.group(1)+found.group(2))
                 return found.group(1) + found.group(2)
         elif "kasan" in report or 'kmsan' in report or 'ubsan' in report:
-            found = CommitInfo.get_call_trace(kasan_pattern, report)
+            found = CrashInfo.get_call_trace(kasan_pattern, report)
             if found:
                 # print(found.group(1))
                 return found.group(1)
-            found = CommitInfo.get_call_trace(kasan_pattern2, report)
+            found = CrashInfo.get_call_trace(kasan_pattern2, report)
             if found:
                 # print(found.group(1))
                 return found.group(1)
-            found = CommitInfo.get_call_trace(kasan_pattern3, report)
+            found = CrashInfo.get_call_trace(kasan_pattern3, report)
 
         else:
             pass
-        found = CommitInfo.get_call_trace(pattern3, report)
+        found = CrashInfo.get_call_trace(pattern3, report)
         if found:
             return found.group(1)
-        found = CommitInfo.get_call_trace(pattern4, report)
+        found = CrashInfo.get_call_trace(pattern4, report)
         if found:
             return found.group(1) + found.group(2)
-        found = CommitInfo.get_call_trace(pattern5, report)
+        found = CrashInfo.get_call_trace(pattern5, report)
         if found:
             return found.group(1)
 
-        found = CommitInfo.get_call_trace(pattern6, report)
+        found = CrashInfo.get_call_trace(pattern6, report)
         if found:
             return found.group(1)
         else:
@@ -304,7 +304,7 @@ class CommitInfo:
         return False
 
 
-class CrashInfo:
+class ReportInfo:
     def __init__(self, title, link, subsystem='', crash_items=[], poc_interval=None):
         self.link = link
         if '\n' in title:
@@ -358,7 +358,7 @@ class CrashInfo:
         repro_syscalls = repro.split('-')
         for log_item in log.split('\n'):
             log_item_syscalls = log_item.split('-')
-            if CrashInfo.is_sub_array(repro_syscalls, log_item_syscalls):
+            if ReportInfo.is_sub_array(repro_syscalls, log_item_syscalls):
                 print("Find matched execution log and reproducer")
                 print("Program in execution log:", log_item)
                 print("Reproducer:", repro)
@@ -371,7 +371,7 @@ class CrashInfo:
         If the call trace can be caused by one of the syscall in reproducer
         """
         # the crashed syscall in report might not in reproducer, let's currently omit it
-        crashed_syscall = kernel2Syscall.parse_call_trace_from_syscall(call_trace)
+        crashed_syscall = SyscallResolver.parse_call_trace_from_syscall(call_trace)
         for syscall in repro.split('-'):
             if syscall.startswith(crashed_syscall):
                 return True
@@ -412,9 +412,9 @@ class CrashInfo:
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, CommitInfo):
+        if isinstance(obj, CrashInfo):
             return obj.__dict__  # Convert MyClass object to a dictionary
-        elif isinstance(obj, CrashInfo):
+        elif isinstance(obj, ReportInfo):
             return {
                 **obj.__dict__,  # Convert Address object to a dictionary
                 "poc_interval": str(obj.poc_interval)
@@ -434,22 +434,22 @@ class MyDecoder(json.JSONDecoder):
                 poc_interval = pd.Timedelta(obj['poc_interval'])
             for commit in obj['crash_items']:
                 syscall_names = commit.get('syscall_names', [])
-                crash_items.append(CommitInfo(commit['time'],
-                                              commit['commit'],
-                                              commit['console_log'],
-                                              commit['console_log_link'],
-                                              commit['report'],
-                                              commit['report_link'],
-                                              commit['syz_repro'],
-                                              commit['syz_repro_link'],
-                                              commit['call_trace'],
-                                              syscall_names))
-            return CrashInfo(obj['title'], obj['link'], obj['subsystem'], crash_items, poc_interval)
+                crash_items.append(CrashInfo(commit['time'],
+                                             commit['commit'],
+                                             commit['console_log'],
+                                             commit['console_log_link'],
+                                             commit['report'],
+                                             commit['report_link'],
+                                             commit['syz_repro'],
+                                             commit['syz_repro_link'],
+                                             commit['call_trace'],
+                                             syscall_names))
+            return ReportInfo(obj['title'], obj['link'], obj['subsystem'], crash_items, poc_interval)
         return obj
 
 
 def parse_fixed():
-    crash_arr: list[CrashInfo] = []
+    crash_arr: list[ReportInfo] = []
     url = 'https://syzkaller.appspot.com/upstream/fixed'
     response = requests.get(url)
 
@@ -481,7 +481,7 @@ def parse_fixed():
                     if 'lock' in title or 'KCSAN' in title:
                         continue
                     link = title_cell.find('a')['href']
-                    crash = CrashInfo(title, "https://syzkaller.appspot.com" + link)
+                    crash = ReportInfo(title, "https://syzkaller.appspot.com" + link)
                     crash_arr.append(crash)
     print('Total Fixed Crashes: ', len(rows))
     print('Total Crashes with Repro: ', num_with_repro)
@@ -489,7 +489,7 @@ def parse_fixed():
     return crash_arr
 
 
-def parse_crash(crash: CrashInfo):
+def parse_crash(crash: ReportInfo):
     time.sleep(1)
     response = requests.get(crash.link)
     soup = BeautifulSoup(response.content, 'html.parser')
@@ -520,7 +520,7 @@ def parse_crash(crash: CrashInfo):
         if len(cells) > syz_repro_index and len(cells) > c_repro_index:
             item_time = cells[time_index].get_text().strip()
             commit = cells[commit_index].get_text().strip()
-            cur_item = CommitInfo(item_time, commit)
+            cur_item = CrashInfo(item_time, commit)
 
             cur_item.parse_report(cells[report_index])
             cur_item.parse_console_log(cells[console_index])
@@ -534,8 +534,8 @@ if __name__ == '__main__':
 
     if sys.argv[1] == '0':
         # parse a specific crash
-        parse_crash(crash=CrashInfo('',
-                                    link='https://syzkaller.appspot.com/bug?id=5270676317f74d30265abb76b7ca58b5608ca545'))
+        parse_crash(crash=ReportInfo('',
+                                     link='https://syzkaller.appspot.com/bug?id=5270676317f74d30265abb76b7ca58b5608ca545'))
 
     elif sys.argv[1] == '1':
         # crawl information of all fixed crashes yet with available reproducer
@@ -580,7 +580,6 @@ if __name__ == '__main__':
                     if item.call_trace is not None:
                         found_report = True
 
-
             for item in crash.crash_items:
                 if item.call_trace is not None:
                     print(item.call_trace)
@@ -588,7 +587,8 @@ if __name__ == '__main__':
                         print('Found syscall related call trace', item.report_link)
                         num_crash_syscall += 1
                         crash_arr_syscall.append(crash)
-                        crashed_call = code2Syscall.parse_syscall(item.call_trace)
+                        crashed_call = resolver.parse_syscall_from_trace(item.call_trace)
+                        print(item.call_trace)
                         print('Crashed Syscall:', crashed_call)
                         if len(crashed_call) == 1:
                             print('Single Crashed Syscall!!!')
