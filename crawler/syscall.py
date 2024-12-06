@@ -3528,7 +3528,7 @@ class SyscallResolver:
             for syscall in syzcall_to_syscall[syzcall]:
                 if syscall not in self.syscall_to_syzcall:
                     self.syscall_to_syzcall[syscall] = set()
-                self.syscall_to_syzcall[syscall].update(syscall)
+                self.syscall_to_syzcall[syscall].add(syzcall)
 
 
     @staticmethod
@@ -3536,7 +3536,11 @@ class SyscallResolver:
         result = set()
         for str1 in set1:
             for str2 in set2:
-                if str1.startswith(str2 + '$') or str2.startswith(str1 + '$'):
+                if str1.startswith(str2 + '$'):
+                    result.add(str1)
+                elif str2.startswith(str1 + '$'):
+                    result.add(str2)
+                else:
                     result.add(str1)
                     result.add(str2)
         return result
@@ -3576,7 +3580,8 @@ class SyscallResolver:
         potential_calls.update(self.parse_syscall_from_trace_manually(call_trace))
         if precise:
             # potential_calls.update(self.parse_syscall_from_trace_via_syzdirect(call_trace))
-            potential_calls.update(self.parse_syscall_from_trace(call_trace))
+            potential_calls = self.two_custom_intersection(potential_calls,
+                                                           self.parse_syscall_from_trace_via_written_map(call_trace))
 
         return list(potential_calls)
 
@@ -3621,7 +3626,7 @@ class SyscallResolver:
                 candidate_syscalls.update(self.syscall_to_syzcall[crashed_syscall])
         return list(candidate_syscalls)
 
-    def parse_syscall_from_trace(self, call_trace: str) -> []:
+    def parse_syscall_from_trace_via_written_map(self, call_trace: str) -> []:
         call_trace.strip()
         candidate_syscalls = set()
         for line in call_trace.split('\n'):
@@ -3631,10 +3636,11 @@ class SyscallResolver:
             func_name = line.split()[0]
             if '+' in func_name:
                 func_name = func_name[:func_name.find('+')]
+            if func_name.endswith('.cold'):
+                func_name = func_name[:func_name.find('.cold')]
 
             if func_name in self.kernel_func_to_syscall:
-                candidate_syscalls = self.two_custom_intersection(candidate_syscalls,
-                                                                  self.kernel_func_to_syscall[func_name])
+                candidate_syscalls.update(self.kernel_func_to_syscall[func_name])
                 break
 
         if len(candidate_syscalls) == 0:
@@ -3651,7 +3657,8 @@ class SyscallResolver:
             func_name = line.split()[0]
             if '+' in func_name:
                 func_name = func_name[:func_name.find('+')]
-
+            if func_name.endswith('.cold'):
+                func_name = func_name[:func_name.find('.cold')]
             if func_name in self.kernel_to_syscall_syzdirect:
                 bb_to_syscall = self.kernel_to_syscall_syzdirect[func_name]
                 for bb_id, calls in bb_to_syscall.items():
@@ -3667,18 +3674,19 @@ if __name__ == '__main__':
     resolver = SyscallResolver()
     call_trace = \
         """
- dccp_sendmsg+0x968/0xcc0 net/dccp/proto.c:801
- inet_sendmsg+0x9d/0xe0 net/ipv4/af_inet.c:847
- sock_sendmsg_nosec net/socket.c:730 [inline]
- __sock_sendmsg+0xd5/0x180 net/socket.c:745
- ____sys_sendmsg+0x2ac/0x940 net/socket.c:2584
- ___sys_sendmsg+0x135/0x1d0 net/socket.c:2638
- __sys_sendmmsg+0x1a1/0x450 net/socket.c:2724
- __do_sys_sendmmsg net/socket.c:2753 [inline]
- __se_sys_sendmmsg net/socket.c:2750 [inline]
- __x64_sys_sendmmsg+0x9c/0x100 net/socket.c:2750
+ tls_push_record+0x290f/0x3070 net/tls/tls_sw.c:726
+ bpf_exec_tx_verdict+0xdee/0x1230 net/tls/tls_sw.c:819
+ tls_sw_splice_eof+0x194/0x470 net/tls/tls_sw.c:1242
+ sock_splice_eof+0x86/0xb0 net/socket.c:1116
+ direct_file_splice_eof+0x86/0xb0 fs/splice.c:1151
+ do_splice_eof fs/splice.c:944 [inline]
+ splice_direct_to_actor+0x710/0xa30 fs/splice.c:1117
+ do_splice_direct+0x1af/0x280 fs/splice.c:1194
+ do_sendfile+0xb3a/0x1310 fs/read_write.c:1254
+ __do_sys_sendfile64 fs/read_write.c:1322 [inline]
+ __se_sys_sendfile64 fs/read_write.c:1308 [inline]
+ __x64_sys_sendfile64+0x1d6/0x220 fs/read_write.c:1308
  do_syscall_x64 arch/x86/entry/common.c:51 [inline]
  do_syscall_64+0x3f/0x110 arch/x86/entry/common.c:82
- entry_SYSCALL_64_after_hwframe+0x63/0x6b
     """
     print(resolver.parse_syscall_from_trace(call_trace))

@@ -145,6 +145,8 @@ class CrashInfo:
         if self.call_trace == "":
             self.call_trace = None
             print('Warning: cannot find call trace', self.report_link)
+        else:
+            self.call_trace = self.call_trace.strip()
 
     @staticmethod
     def parse_sysprog(syz_prog):
@@ -187,7 +189,7 @@ class CrashInfo:
             report = report.replace('Call trace:\n', 'Call Trace:\n')
 
         if 'Call Trace:\n' not in report:
-            return None
+            return ""
 
         if "WARNING" in report or "GPF" in report or "kernel BUG at" in report \
                 or "BUG: unable to handle" in report:
@@ -271,8 +273,6 @@ class CrashInfo:
         if 'ret_from_fork' in self.call_trace or 'process_one_work' in self.call_trace:
             return True
         elif 'kthread' in self.call_trace:
-            return True
-        elif '<TASK>' in self.call_trace:
             return True
         else:
             return False
@@ -582,13 +582,14 @@ if __name__ == '__main__':
 
             for item in crash.crash_items:
                 if item.call_trace is not None:
-                    print(item.call_trace)
                     if item.if_call_trace_from_syscall():
                         print('Found syscall related call trace', item.report_link)
                         num_crash_syscall += 1
                         crash_arr_syscall.append(crash)
                         crashed_call = resolver.parse_syscall_from_trace(item.call_trace)
                         print(item.call_trace)
+                        if item.syscall_names:
+                            print(item.syscall_names)
                         print('Crashed Syscall:', crashed_call)
                         if len(crashed_call) == 1:
                             print('Single Crashed Syscall!!!')
