@@ -3605,6 +3605,11 @@ class SyscallResolver:
                 else:
                     crashed_syscall = line[9:line.find(' ')]
                 break
+            elif line.startswith('__do_compat_sys_'):
+                if '+' in line:
+                    crashed_syscall = line[16:line.find('+')]
+                else:
+                    crashed_syscall = line[16:line.find(' ')]
             elif line.startswith('__sys_'):
                 crashed_syscall = line[6:line.find('+')]
                 break
@@ -3638,7 +3643,10 @@ class SyscallResolver:
                 func_name = func_name[:func_name.find('+')]
             if func_name.endswith('.cold'):
                 func_name = func_name[:func_name.find('.cold')]
-
+            if '.constprop' in func_name:
+                func_name = func_name[:func_name.find('.constprop')]
+            if '.isra.' in func_name:
+                func_name = func_name[:func_name.find('.isra.')]
             if func_name in self.kernel_func_to_syscall:
                 candidate_syscalls.update(self.kernel_func_to_syscall[func_name])
                 break
@@ -3659,6 +3667,10 @@ class SyscallResolver:
                 func_name = func_name[:func_name.find('+')]
             if func_name.endswith('.cold'):
                 func_name = func_name[:func_name.find('.cold')]
+            if '.constprop' in func_name:
+                func_name = func_name[:func_name.find('.constprop')]
+            if '.isra.' in func_name:
+                func_name = func_name[:func_name.find('.isra.')]
             if func_name in self.kernel_to_syscall_syzdirect:
                 bb_to_syscall = self.kernel_to_syscall_syzdirect[func_name]
                 for bb_id, calls in bb_to_syscall.items():
@@ -3674,19 +3686,28 @@ if __name__ == '__main__':
     resolver = SyscallResolver()
     call_trace = \
         """
- tls_push_record+0x290f/0x3070 net/tls/tls_sw.c:726
- bpf_exec_tx_verdict+0xdee/0x1230 net/tls/tls_sw.c:819
- tls_sw_splice_eof+0x194/0x470 net/tls/tls_sw.c:1242
- sock_splice_eof+0x86/0xb0 net/socket.c:1116
- direct_file_splice_eof+0x86/0xb0 fs/splice.c:1151
- do_splice_eof fs/splice.c:944 [inline]
- splice_direct_to_actor+0x710/0xa30 fs/splice.c:1117
- do_splice_direct+0x1af/0x280 fs/splice.c:1194
- do_sendfile+0xb3a/0x1310 fs/read_write.c:1254
- __do_sys_sendfile64 fs/read_write.c:1322 [inline]
- __se_sys_sendfile64 fs/read_write.c:1308 [inline]
- __x64_sys_sendfile64+0x1d6/0x220 fs/read_write.c:1308
- do_syscall_x64 arch/x86/entry/common.c:51 [inline]
- do_syscall_64+0x3f/0x110 arch/x86/entry/common.c:82
+__dump_stack lib/dump_stack.c:77 [inline]
+ dump_stack+0x172/0x1f0 lib/dump_stack.c:113
+ print_address_description.constprop.0.cold+0xd4/0x30b mm/kasan/report.c:374
+ __kasan_report.cold+0x1b/0x41 mm/kasan/report.c:506
+ kasan_report+0x12/0x20 mm/kasan/common.c:634
+ check_memory_region_inline mm/kasan/generic.c:185 [inline]
+ check_memory_region+0x134/0x1a0 mm/kasan/generic.c:192
+ memcpy+0x24/0x50 mm/kasan/common.c:122
+ memcpy include/linux/string.h:404 [inline]
+ bpf_prog_create+0xe9/0x250 net/core/filter.c:1351
+ get_filter.isra.0+0x108/0x1a0 drivers/net/ppp/ppp_generic.c:572
+ ppp_get_filter drivers/net/ppp/ppp_generic.c:584 [inline]
+ ppp_ioctl+0x129d/0x2590 drivers/net/ppp/ppp_generic.c:801
+ vfs_ioctl fs/ioctl.c:47 [inline]
+ file_ioctl fs/ioctl.c:539 [inline]
+ do_vfs_ioctl+0xdb6/0x13e0 fs/ioctl.c:726
+ ksys_ioctl+0xab/0xd0 fs/ioctl.c:743
+ __do_sys_ioctl fs/ioctl.c:750 [inline]
+ __se_sys_ioctl fs/ioctl.c:748 [inline]
+ __x64_sys_ioctl+0x73/0xb0 fs/ioctl.c:748
+ do_syscall_64+0xfa/0x760 arch/x86/entry/common.c:290
+ entry_SYSCALL_64_after_hwframe+0x49/0xbe
+openat$ppp-ioctl$EVIOCGPROP-ioctl$PPPIOCSPASS
     """
     print(resolver.parse_syscall_from_trace(call_trace))
