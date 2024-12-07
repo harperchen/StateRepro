@@ -47,6 +47,7 @@ bind$phonet,pn_socket_bind
 bind$pptp,pptp_bind
 bind$qrtr,qrtr_bind
 bind$rose,rose_bind
+bind$rds,rds_bind
 bind$rxrpc,rxrpc_bind
 bind$tipc,tipc_bind
 bind$unix,unix_bind
@@ -111,7 +112,7 @@ connect$rxrpc,rxrpc_connect
 connect$tipc,tipc_connect
 connect$unix,"unix_stream_connect,unix_dgram_connect"
 connect$vsock_dgram,vsock_dgram_connect
-connect$vsock_stream,vsock_connect
+connect$vsock_stream,vsock_stream_connect
 epoll_ctl$EPOLL_CTL_ADD,ep_insert
 epoll_ctl$EPOLL_CTL_DEL,ep_remove
 epoll_ctl$EPOLL_CTL_MOD,ep_modify
@@ -317,7 +318,7 @@ getsockopt$inet_sctp6_SCTP_RECVRCVINFO,sctp_getsockopt_recvrcvinfo
 getsockopt$inet_sctp6_SCTP_RESET_STREAMS,None
 getsockopt$inet_sctp6_SCTP_RTOINFO,sctp_getsockopt_rtoinfo
 getsockopt$inet_sctp6_SCTP_SOCKOPT_CONNECTX3,sctp_getsockopt_connectx3
-getsockopt$inet_sctp6_SCTP_SOCKOPT_PEELOFF,sctp_getsockopt_peeloff
+getsockopt$inet_sctp6_SCTP_SOCKOPT_PEELOFF,"sctp_getsockopt_peeloff,sctp_getsockopt_peeloff_flags"
 getsockopt$inet_sctp6_SCTP_STATUS,sctp_getsockopt_sctp_status
 getsockopt$inet_sctp6_SCTP_STREAM_SCHEDULER,sctp_getsockopt_scheduler
 getsockopt$inet_sctp6_SCTP_STREAM_SCHEDULER_VALUE,sctp_getsockopt_scheduler_value
@@ -1168,6 +1169,7 @@ ioctl$KDSKBENT,vt_kdskbent
 ioctl$KDSKBLED,set_leds
 ioctl$KDSKBSENT,do_kdgkb_ioctl
 ioctl$KIOCSOUND,kd_mksound
+ioctl$KVM_CLEAR_DIRTY_LOG,kvm_vm_ioctl_clear_dirty_log
 ioctl$KVM_CREATE_VM,kvm_dev_ioctl_create_vm
 ioctl$KVM_ARM_SET_DEVICE_ADDR,kvm_vm_ioctl_set_device_addr
 ioctl$KVM_ASSIGN_DEV_IRQ,None
@@ -1205,7 +1207,8 @@ ioctl$KVM_CREATE_VCPU,kvm_vm_ioctl_create_vcpu
 ioctl$KVM_DEASSIGN_DEV_IRQ,None
 ioctl$KVM_DEASSIGN_PCI_DEVICE,None
 ioctl$KVM_DIRTY_TLB,kvm_vcpu_ioctl_dirty_tlb
-ioctl$KVM_ENABLE_CAP,kvm_vm_ioctl_enable_cap_generic
+ioctl$KVM_ENABLE_CAP,kvm_vcpu_ioctl_enable_cap
+ioctl$KVM_ENABLE_CAP_CPU,kvm_vcpu_ioctl_enable_cap
 ioctl$KVM_GET_API_VERSION,kvm_dev_ioctl
 ioctl$KVM_GET_CLOCK,get_kvmclock_ns
 ioctl$KVM_GET_CPUID2,kvm_vcpu_ioctl_get_cpuid2
@@ -1219,7 +1222,7 @@ ioctl$KVM_GET_LAPIC,kvm_vcpu_ioctl_get_lapic
 ioctl$KVM_GET_MP_STATE,kvm_arch_vcpu_ioctl_get_mpstate
 ioctl$KVM_GET_MSRS,do_get_msr_feature
 ioctl$KVM_GET_MSR_INDEX_LIST,kvm_arch_dev_ioctl
-ioctl$KVM_GET_NESTED_STATE,svm_get_nested_state
+ioctl$KVM_GET_NESTED_STATE,"svm_get_nested_state,vmx_get_nested_state"
 ioctl$KVM_GET_NR_MMU_PAGES,kvm_vm_ioctl_get_nr_mmu_pages
 ioctl$KVM_GET_ONE_REG,"kvm_arm_get_reg,kvm_arch_vcpu_ioctl_get_one_reg"
 ioctl$KVM_GET_PIT,kvm_vm_ioctl_get_pit
@@ -1890,6 +1893,7 @@ ioctl$VIDIOC_ENUM_DV_TIMINGS,vidioc_enum_dv_timings
 ioctl$VIDIOC_G_DV_TIMINGS,vidioc_g_dv_timings
 ioctl$VIDIOC_G_EDID,vidioc_g_edid
 ioctl$VIDIOC_QUERYBUF,vidioc_querybuf
+ioctl$VIDIOC_S_CROP,v4l_s_crop
 ioctl$VIDIOC_QUERYBUF_DMABUF,"stk_vidioc_querybuf,v4l2_m2m_ioctl_querybuf,cpia2_querybuf,iss_video_querybuf,uvc_v4l2_querybuf,s3c_camif_querybuf,vpfe_querybuf,vidioc_querybuf,cx18_querybuf,isp_video_querybuf,gsc_m2m_querybuf,uvc_ioctl_querybuf,bttv_querybuf,vb2_ioctl_querybuf,zr364xx_vidioc_querybuf"
 ioctl$VIDIOC_QUERY_DV_TIMINGS,"rvin_query_dv_timings,cobalt_query_dv_timings,vpif_query_dv_timings,tegra_channel_query_dv_timings,aspeed_video_query_dv_timings,vidioc_query_dv_timings,skeleton_query_dv_timings"
 ioctl$VIDIOC_SUBDEV_DV_TIMINGS_CAP,"gs_dv_timings_cap,adv7842_dv_timings_cap,call_dv_timings_cap,ad9389b_dv_timings_cap,tc358743_dv_timings_cap,adv7511_dv_timings_cap,adv748x_hdmi_dv_timings_cap,ths8200_dv_timings_cap,adv76xx_dv_timings_cap,tda1997x_get_dv_timings_cap"
@@ -2509,8 +2513,8 @@ sendmsg$TIPC_CMD_SET_LINK_TOL,tipc_nl_node_set_link
 sendmsg$TIPC_CMD_SET_LINK_WINDOW,tipc_nl_node_set_link
 sendmsg$TIPC_CMD_SET_NETID,__tipc_nl_net_set
 sendmsg$TIPC_CMD_SET_NODE_ADDR,__tipc_nl_net_set
-sendmsg$TIPC_CMD_SHOW_LINK_STATS,tipc_nl_node_dump_link
-sendmsg$TIPC_CMD_SHOW_NAME_TABLE,tipc_nl_name_table_dump
+sendmsg$TIPC_CMD_SHOW_LINK_STATS,"tipc_nl_node_dump_link,tipc_nl_compat_doit"
+sendmsg$TIPC_CMD_SHOW_NAME_TABLE,"tipc_nl_name_table_dump,tipc_nl_compat_doit"
 sendmsg$TIPC_CMD_SHOW_PORTS,tipc_nl_sk_dump
 sendmsg$TIPC_CMD_SHOW_STATS,tipc_cmd_show_stats_compat
 sendmsg$alg,"aead_sendmsg_nokey,hash_sendmsg,sock_no_sendmsg,skcipher_sendmsg_nokey,hash_sendmsg_nokey,skcipher_sendmsg"
@@ -2682,7 +2686,7 @@ setsockopt$inet6_tcp_TCP_REPAIR_QUEUE,do_tcp_setsockopt
 setsockopt$inet6_tcp_TCP_REPAIR_WINDOW,tcp_repair_set_window
 setsockopt$inet6_tcp_TCP_ULP,tcp_set_ulp
 setsockopt$inet6_tcp_TLS_RX,do_tls_setsockopt_conf
-setsockopt$inet6_tcp_TLS_TX,do_tls_setsockopt_conf
+setsockopt$inet6_tcp_TLS_TX,"do_tls_setsockopt_conf,tls_setsockopt"
 setsockopt$inet6_tcp_buf,do_tcp_setsockopt
 setsockopt$inet6_tcp_int,do_tcp_setsockopt
 setsockopt$inet6_udp_encap,udp_lib_setsockopt
@@ -3010,8 +3014,8 @@ write$UHID_SET_REPORT_REPLY,uhid_dev_set_report_reply
 write$USERIO_CMD_REGISTER,serio_register_port
 write$USERIO_CMD_SEND_INTERRUPT,serio_interrupt
 write$USERIO_CMD_SET_PORT_TYPE,userio_char_write
-write$apparmor_current,nan
-write$apparmor_exec,nan
+write$apparmor_current,apparmor_setprocattr
+write$apparmor_exec,apparmor_setprocattr
 write$binfmt_aout,nan
 write$binfmt_elf32,nan
 write$binfmt_misc,nan
@@ -3019,7 +3023,7 @@ write$binfmt_script,nan
 write$bt_hci,"quirk_simultaneous_discovery_write,force_static_address_write,dut_mode_write,force_bredr_smp_write,vendor_diag_write,force_no_mitm_write,quirk_strict_duplicate_filter_write,hci_sock_sendmsg"
 write$capi20,nan
 write$capi20_data,nan
-write$char_usb,yurex_write
+write$char_usb,"wdm_write,yurex_write"
 write$damon_attrs,dbgfs_attrs_write
 write$damon_contexts,"dbgfs_mk_context_write,dbgfs_rm_context_write"
 write$damon_init_regions,dbgfs_init_regions_write
@@ -3100,7 +3104,7 @@ ioctl$HCIUARTSETPROTO,hci_uart_set_proto
 ioctl$IOMMU_TEST_OP_CREATE_ACCESS,iommufd_test_create_access
 ioctl$IOMMU_TEST_OP_ACCESS_PAGES$syz,iommufd_test_access_pages
 connect$bt_sco,sco_sock_connect
-connect$inet6,"inet_stream_connect"
+connect$inet6,"inet_stream_connect,inet_dgram_connect"
 sendmsg$nl_generic,genl_rcv
 syz_mount_image$fuse,"fuse_test_super,romfs_get_tree"
 ioctl$IOMMU_IOAS_UNMAP$ALL,iommufd_ioas_unmap
@@ -3180,3 +3184,8 @@ openat,do_sys_open
 creat,do_sys_open
 read$FUSE,fuse_dev_read
 mount$fuse,fuse_parse_param
+syz_open_dev$hidraw,hidraw_open
+syz_open_dev$evdev,evdev_open
+write$rdma_cm,ucma_write
+openat$rdma_cm,ucma_open
+# 2575
