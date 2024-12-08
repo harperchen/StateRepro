@@ -5,6 +5,7 @@ import requests
 
 from syscall_resolver import *
 from dump_resolver import *
+from poc_resolver import *
 
 from typing import List
 from bs4 import BeautifulSoup
@@ -12,6 +13,9 @@ from datetime import datetime
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 
+dump_resolver = DumpResolver()
+syscall_resolver = SyscallResolver()
+poc_resolver = PoCResolver()
 
 class CrashCrawler:
     def __init__(self, time=None, commit=None,
@@ -172,8 +176,9 @@ class CrashCrawler:
                 crash.add_crash(cur_item)
         crash.get_first_repro_time()
 
+
 class ReportInfo:
-    def __init__(self, title, link, subsystem='', crash_items=[], poc_interval=None):
+    def __init__(self, title, link, crash_items: List[CrashCrawler], subsystem='', poc_interval=None):
         self.link = link
         if '\n' in title:
             self.title = title.split('\n')[0]
@@ -181,7 +186,7 @@ class ReportInfo:
         else:
             self.title = title
             self.subsystem = subsystem
-        self.crash_items = crash_items
+        self.crash_items: List[CrashCrawler] = crash_items
         self.poc_interval = poc_interval
 
     def add_crash(self, new_crash):
@@ -281,21 +286,17 @@ class MyDecoder(json.JSONDecoder):
                                                 commit['syz_repro_link'],
                                                 commit['call_trace'],
                                                 syscall_names))
-            return ReportInfo(obj['title'], obj['link'], obj['subsystem'], crash_items, poc_interval)
+            return ReportInfo(obj['title'], obj['link'], crash_items, obj['subsystem'], poc_interval)
         return obj
 
 
-
-
 if __name__ == '__main__':
-    syscall_resolver = SyscallResolver()
-    dump_resolver = DumpResolver()
 
-    if sys.argv[1] == '0':
+    if sys.argv[1] == 'case':
         # parse a specific crash
         CrashCrawler.parse_crash('https://syzkaller.appspot.com/bug?id=5270676317f74d30265abb76b7ca58b5608ca545')
 
-    elif sys.argv[1] == '1':
+    elif sys.argv[1] == 'crawl':
         # crawl information of all fixed crashes yet with available reproducer
         if os.path.exists('fixed_crash.json'):
             with open('fixed_crash.json', 'r') as f:
@@ -313,9 +314,7 @@ if __name__ == '__main__':
                 with open("fixed_crash.json", "w") as file:
                     file.write(json_data)
 
-    elif sys.argv[1] == '2':
-        crash_arr_syscall = []
-
+    elif sys.argv[1] == 'analyze':
         with open('fixed_crash.json', 'r') as f:
             crash_array = json.loads(f.read(), cls=MyDecoder)
 
@@ -331,49 +330,52 @@ if __name__ == '__main__':
 
             found_report = False
             for item in crash.crash_items:
-                if item.report is not None:
-                    item.parse_deeper()
-                    if item.call_trace is not None:
-                        found_report = True
+                if item.report is None:
+                    continue
+                item.call_trace = dump_resolver.parse_call_trace(item.report)
+                if item.syz_repro is None:
+                    continue
+                item.syscall_names = poc_resolver.parse_sysprog(item.syz_repro)
+                if item.call_trace is None:
+                    continue
+
+                found_report = True
+                if dump_resolver.if_call_trace_from_syscall(item.call_trace):
+                    print()
+                    print('Found syscall related call trace', item.report_link)
+                    num_crash_syscall += 1
+                    crashed_calls = syscall_resolver.parse_syscall_from_trace(item.call_trace)
+                    calibrated_calls = PoCResolver.calibrate_crashed_call_from_poc(item.syscall_names, crashed_calls)
+                    print(item.call_trace)
+                    print('Crashed Syscall:', crashed_calls)
+                    print('Calibrated Syscall: ', calibrated_calls)
+
+                    if len(crashed_calls) == 1:
+                        print('Single Crashed Syscall!!!')
+                    if len(calibrated_calls) == 1:
+                        print('Correct Infer Syscall!!!')
+                    break
+                elif dump_resolver.if_call_trace_from_forked(item.call_trace):
+                    print('Found background thread related call trace', item.report_link)
+                    num_crash_backthread += 1
+                    break
+                elif dump_resolver.if_call_trace_from_interrupt(item.call_trace):
+                    print('Found interrupt related call trace', item.report_link)
+                    num_crash_interrupt += 1
+                    break
+                elif dump_resolver.if_call_trace_exit_mode(item.call_trace):
+                    print('Found exit to user mode related call trace', item.report_link)
+                    num_crash_exiting += 1
+                    break
+                else:
+                    print('Unknown call trace', item.report_link)
+                    print(item.call_trace)
+                    break
 
             for item in crash.crash_items:
-                if item.call_trace is not None:
-                    if item.if_call_trace_from_syscall():
-                        print('Found syscall related call trace', item.report_link)
-                        num_crash_syscall += 1
-                        crash_arr_syscall.append(crash)
-                        crashed_call = syscall_resolver.parse_syscall_from_trace(item.call_trace)
-                        print(item.call_trace)
-                        if item.syscall_names:
-                            print(item.syscall_names)
-                        print('Crashed Syscall:', crashed_call)
-                        if len(crashed_call) == 1:
-                            print('Single Crashed Syscall!!!')
-                        break
-                    elif item.if_call_trace_from_forked():
-                        print('Found background thread related call trace', item.report_link)
-                        num_crash_backthread += 1
-                        break
-                    elif item.if_call_trace_from_interrupt():
-                        print('Found interrupt related call trace', item.report_link)
-                        num_crash_interrupt += 1
-                        break
-                    elif item.if_call_trace_exit_mode():
-                        print('Found exit to user mode related call trace', item.report_link)
-                        num_crash_exiting += 1
-                        break
-                    else:
-                        print('Unknown call trace', item.report_link)
-                        print(item.call_trace)
-                        break
-
-            repros = set()
-            for item in crash.crash_items:
-                if item.syscall_names is not None:
-                    repros.add(item.syscall_names)
-
-            for repro in repros:
-                print('PoC: ', repro)
+                if item.syscall_names is None:
+                    continue
+                print('PoC: ', item.syscall_names)
 
             if found_report:
                 num_tot_crash += 1
@@ -390,7 +392,6 @@ if __name__ == '__main__':
                                                                                   len(crash_array)))
         print('Crash Call Trace Related to Interrupt: {}/{}/{}'.format(num_crash_interrupt, num_tot_crash,
                                                                        len(crash_array)))
-        print('Len of Crash Arr Syscall: ', len(crash_arr_syscall))
         print()
 
         # num_stateful = 0

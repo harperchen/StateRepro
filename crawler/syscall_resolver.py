@@ -78,6 +78,7 @@ class SyscallResolver:
 
         return result
 
+
     def parse_syscall_from_trace(self, call_trace: str, precise=True) -> []:
         potential_calls = set()
         potential_calls.update(self.parse_syscall_from_trace_manually(call_trace))

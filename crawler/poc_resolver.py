@@ -6,6 +6,7 @@ Locate crashed syscall trace from console log based on several clue:
 
 from typing import List
 
+
 class PoCResolver:
     def __init__(self):
         pass
@@ -37,8 +38,7 @@ class PoCResolver:
 
         return i == len(array1)  # Return True if all elements of array1 were found in array2
 
-
-    def match_log_repro(self, log, repro) -> bool:
+    def match_poc_and_log(self, log, repro) -> bool:
         """
         TODO: more fine-grained matching, currently we do not consider subsystem, say, only ioctl is consider, while
         ioctl$XX is not considered
@@ -52,6 +52,51 @@ class PoCResolver:
                 print("Reproducer:", repro)
                 return True
         return False
+
+                
+    @staticmethod
+    def calibrate_crashed_call_from_poc(poc: str, inferred_calls: []) -> []:
+        correct_crash_syscalls = []
+        repro_syzcalls = poc.split('-')
+        """
+        Four cases here:
+           1. exact match, no matter a$1 or a
+           2. we can only infer primitive syscall from call trace, say a, but we can find a$1 (a$2, etc) in PoC
+           3. we can infer a$1 from call trace, but we find a or a$2 in PoC
+           4. we can find a$1 or a from call trace, but no a in PoC, instead we have b in PoC, mainly due to the fact
+              that a crash could be triggered via various syscalls
+        """
+        for call in inferred_calls:
+            if call in repro_syzcalls:
+                # case 1
+                correct_crash_syscalls.append(call)
+            elif '$' in call:
+                # case 3
+                primitive_call = call[:call.find('$')]
+                if primitive_call in repro_syzcalls:
+                    correct_crash_syscalls.append(primitive_call)
+                else:
+                    # case 3
+                    for correct_call in repro_syzcalls:
+                        if '$' in correct_call:
+                            correct_primitive = correct_call[:correct_call.find('$')]
+                            if correct_primitive != primitive_call:
+                                continue
+                            correct_crash_syscalls.append(correct_call)
+            else:
+                # case 2
+                for correct_call in repro_syzcalls:
+                    if '$' in correct_call:
+                        correct_primitive = correct_call[:correct_call.find('$')]
+                        if correct_primitive != call:
+                            continue
+                        correct_crash_syscalls.append(correct_call)
+
+        if len(correct_crash_syscalls) == 0:
+            # case 4
+            print('!!!Warning: cannot find any match between inferred call and Poc')
+
+        return correct_crash_syscalls
 
     def guess_if_not_stateful(self):
         # TODO: guess if current crash is related to stateful
