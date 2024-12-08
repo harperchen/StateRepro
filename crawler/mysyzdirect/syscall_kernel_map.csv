@@ -3205,3 +3205,4 @@ write$vhci,vhci_write
 write$vhost_msg,vhost_net_chr_write_iter
 write$vhost_msg_v2,vhost_net_chr_write_iter
 writev,do_writev
+syz_mount_image$bcachefs,bch2_fs_get_tree
