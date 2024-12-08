@@ -70,7 +70,7 @@ class DumpResolver:
         report += "\nAllocated by task"
         raw_call_trace = None
         if "WARNING" in report or "GPF" in report or "kernel BUG at" in report \
-                or "BUG: unable to handle" in report:
+                or "BUG: unable to handle" in report or 'general protection fault' in report:
             for pattern in self.warn_patterns:
                 found = self.get_call_trace(pattern, report)
                 if found:
@@ -155,6 +155,10 @@ class DumpResolver:
         return False
 
     def if_call_trace_exit_mode(self, call_trace):
+        if '__do_sys_exit_group' in call_trace:
+            return True
+        if 'SyS_exit_group' in call_trace:
+            return True
         if 'syscall_return_slowpath' in call_trace:
             return True
         elif '__syscall_exit_to_user_mode_work' in call_trace:
@@ -173,44 +177,38 @@ class DumpResolver:
 if __name__ == '__main__':
     resolver = DumpResolver()
     report = \
-        """==================================================================
-BUG: KASAN: slab-out-of-bounds in class_equal+0x40/0x50 kernel/locking/lockdep.c:1527
-Read of size 8 at addr ffff888086037440 by task syz-executor.1/10102
-
-CPU: 1 PID: 10102 Comm: syz-executor.1 Not tainted 5.2.0-rc6+ #34
+        """general protection fault, probably for non-canonical address 0xdffffc0000000103: 0000 [#1] PREEMPT SMP KASAN
+KASAN: null-ptr-deref in range [0x0000000000000818-0x000000000000081f]
+CPU: 0 PID: 12816 Comm: syz-executor.1 Not tainted 5.14.0-syzkaller #0
 Hardware name: Google Google Compute Engine/Google Compute Engine, BIOS Google 01/01/2011
+RIP: 0010:io_register_iowq_max_workers fs/io_uring.c:10552 [inline]
+RIP: 0010:__io_uring_register fs/io_uring.c:10757 [inline]
+RIP: 0010:__do_sys_io_uring_register+0x10e9/0x2e70 fs/io_uring.c:10792
+Code: ea 03 80 3c 02 00 0f 85 43 1b 00 00 48 8b 9b a8 00 00 00 b8 ff ff 37 00 48 c1 e0 2a 48 8d bb 18 08 00 00 48 89 fa 48 c1 ea 03 <80> 3c 02 00 0f 85 11 1b 00 00 48 8b 9b 18 08 00 00 48 85 db 0f 84
+RSP: 0018:ffffc90003f3fdf8 EFLAGS: 00010206
+RAX: dffffc0000000000 RBX: 0000000000000000 RCX: 0000000000000000
+RDX: 0000000000000103 RSI: 0000000000000004 RDI: 0000000000000818
+RBP: ffff888073777900 R08: 0000000000000000 R09: ffff88807e916413
+R10: ffffed100fd22c82 R11: 0000000000000001 R12: 0000000000000000
+R13: ffffc90003f3fec8 R14: 1ffff920007e7fc9 R15: ffff88805cd7e000
+FS:  00007f6c631e3700(0000) GS:ffff8880b9c00000(0000) knlGS:0000000000000000
+CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+CR2: 0000000001907808 CR3: 0000000062c6d000 CR4: 00000000001506f0
+DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+DR3: 0000000000000000 DR6: 00000000fffe0ff0 DR7: 0000000000000400
 Call Trace:
-
-Allocated by task 9813:
- save_stack+0x23/0x90 mm/kasan/common.c:71
- set_track mm/kasan/common.c:79 [inline]
- __kasan_kmalloc mm/kasan/common.c:489 [inline]
- __kasan_kmalloc.constprop.0+0xcf/0xe0 mm/kasan/common.c:462
- kasan_kmalloc+0x9/0x10 mm/kasan/common.c:503
- __do_kmalloc mm/slab.c:3660 [inline]
- __kmalloc+0x15c/0x740 mm/slab.c:3669
- kmalloc_array include/linux/slab.h:670 [inline]
- batadv_hash_new+0xaf/0x2f0 net/batman-adv/hash.c:56
- batadv_tt_global_init net/batman-adv/translation-table.c:1492 [inline]
- batadv_tt_init+0x26a/0x330 net/batman-adv/translation-table.c:4403
- batadv_mesh_init+0x4f5/0x700 net/batman-adv/main.c:208
- batadv_softif_init_late+0xc27/0xea0 net/batman-adv/soft-interface.c:861
- register_netdevice+0x2fd/0xff0 net/core/dev.c:8663
- __rtnl_newlink+0x146b/0x16c0 net/core/rtnetlink.c:3199
- rtnl_newlink+0x69/0xa0 net/core/rtnetlink.c:3245
- rtnetlink_rcv_msg+0x463/0xb00 net/core/rtnetlink.c:5214
- netlink_rcv_skb+0x177/0x450 net/netlink/af_netlink.c:2482
- rtnetlink_rcv+0x1d/0x30 net/core/rtnetlink.c:5232
- netlink_unicast_kernel net/netlink/af_netlink.c:1307 [inline]
- netlink_unicast+0x531/0x710 net/netlink/af_netlink.c:1333
- netlink_sendmsg+0x8ae/0xd70 net/netlink/af_netlink.c:1922
- sock_sendmsg_nosec net/socket.c:646 [inline]
- sock_sendmsg+0xd7/0x130 net/socket.c:665
- __sys_sendto+0x262/0x380 net/socket.c:1958
- __do_sys_sendto net/socket.c:1970 [inline]
- __se_sys_sendto net/socket.c:1966 [inline]
- __x64_sys_sendto+0xe1/0x1a0 net/socket.c:1966
- do_syscall_64+0xfd/0x680 arch/x86/entry/common.c:301
- entry_SYSCALL_64_after_hwframe+0x49/0xbe
+ do_syscall_x64 arch/x86/entry/common.c:50 [inline]
+ do_syscall_64+0x35/0xb0 arch/x86/entry/common.c:80
+ entry_SYSCALL_64_after_hwframe+0x44/0xae
+RIP: 0033:0x4665f9
+Code: ff ff c3 66 2e 0f 1f 84 00 00 00 00 00 0f 1f 40 00 48 89 f8 48 89 f7 48 89 d6 48 89 ca 4d 89 c2 4d 89 c8 4c 8b 4c 24 08 0f 05 <48> 3d 01 f0 ff ff 73 01 c3 48 c7 c1 bc ff ff ff f7 d8 64 89 01 48
+RSP: 002b:00007f6c631e3188 EFLAGS: 00000246 ORIG_RAX: 00000000000001ab
+RAX: ffffffffffffffda RBX: 000000000056c038 RCX: 00000000004665f9
+RDX: 0000000020004000 RSI: 0000000000000013 RDI: 0000000000000003
+RBP: 00000000004bfcc4 R08: 0000000000000000 R09: 0000000000000000
+R10: 0000000000000002 R11: 0000000000000246 R12: 000000000056c038
+R13: 00007ffdd807e0af R14: 00007f6c631e3300 R15: 0000000000022000
+Modules linked in:
+---[ end trace 1cd60a7726ee853d ]---
     """
     print(resolver.parse_call_trace(report))

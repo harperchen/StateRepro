@@ -9,7 +9,8 @@ from typing import List
 
 class PoCResolver:
     def __init__(self):
-        pass
+        self.num_crashed_call_correct = 0
+        self.num_crashed_primitive_correct = 0
 
     def parse_sysprog(self, syz_prog: str) -> str:
         syscall_names = []
@@ -53,9 +54,9 @@ class PoCResolver:
                 return True
         return False
 
-                
-    @staticmethod
-    def calibrate_crashed_call_from_poc(poc: str, inferred_calls: []) -> []:
+
+
+    def calibrate_crashed_call_from_poc(self, poc: str, inferred_calls: []) -> []:
         correct_crash_syscalls = []
         repro_syzcalls = poc.split('-')
         """
@@ -70,10 +71,12 @@ class PoCResolver:
             if call in repro_syzcalls:
                 # case 1
                 correct_crash_syscalls.append(call)
+                self.num_crashed_call_correct += 1
             elif '$' in call:
                 # case 3
                 primitive_call = call[:call.find('$')]
                 if primitive_call in repro_syzcalls:
+                    self.num_crashed_primitive_correct += 1
                     correct_crash_syscalls.append(primitive_call)
                 else:
                     # case 3
@@ -82,6 +85,7 @@ class PoCResolver:
                             correct_primitive = correct_call[:correct_call.find('$')]
                             if correct_primitive != primitive_call:
                                 continue
+                            self.num_crashed_primitive_correct += 1
                             correct_crash_syscalls.append(correct_call)
             else:
                 # case 2
@@ -90,6 +94,7 @@ class PoCResolver:
                         correct_primitive = correct_call[:correct_call.find('$')]
                         if correct_primitive != call:
                             continue
+                        self.num_crashed_primitive_correct += 1
                         correct_crash_syscalls.append(correct_call)
 
         if len(correct_crash_syscalls) == 0:

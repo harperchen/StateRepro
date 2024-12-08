@@ -2165,7 +2165,7 @@ mknod$loop,nan
 mknodat,do_mknodat
 mknodat$loop,nan
 mknodat$null,nan
-mmap,do_mmap
+mmap,"do_mmap,ksys_mmap_pgoff"
 mmap$DRM_I915,i915_gem_mmap
 mmap$DRM_MSM,msm_gem_object_mmap
 mmap$IORING_OFF_CQ_RING,io_uring_validate_mmap_request
@@ -3001,7 +3001,7 @@ syz_open_dev$sg,sg_open
 syz_open_dev$sndpcmp,snd_pcm_oss_open
 unlinkat$binderfs_device,nan
 waitid$P_PIDFD,pidfd_get_pid
-write,"writev,write"
+write,"ksys_write"
 write$6lowpan_enable,debugfs_attr_write
 write$9p,p9pdu_vwritef
 write$ALLOC_MW,"irdma_alloc_mw,mlx5_ib_alloc_mw,ib_uverbs_alloc_mw,hns_roce_alloc_mw"
@@ -3149,7 +3149,7 @@ write$capi20,nan
 write$capi20_data,nan
 write$cgroup_int,cgroup_file_write
 write$cgroup_type,"cgroup_file_write,cgroup_type_write"
-write$char_usb,"yurex_write,wdm_write"
+write$char_usb,"yurex_write,wdm_write,ld_usb_write"
 write$damon_attrs,dbgfs_attrs_write
 write$damon_contexts,"dbgfs_mk_context_write,dbgfs_rm_context_write"
 write$damon_init_regions,dbgfs_init_regions_write
@@ -3206,3 +3206,7 @@ write$vhost_msg,vhost_net_chr_write_iter
 write$vhost_msg_v2,vhost_net_chr_write_iter
 writev,do_writev
 syz_mount_image$bcachefs,bch2_fs_get_tree
+sendfile,do_sendfile
+sendfile64,do_sendfile
+read,ksys_read
+umount2,ksys_umount

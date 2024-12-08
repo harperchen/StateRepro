@@ -19,6 +19,7 @@
         "write"
     ],
     "syz_usb_connect": [
+        "openat",
         "ioctl"
     ],
     "syz_btf_id_by_name": [

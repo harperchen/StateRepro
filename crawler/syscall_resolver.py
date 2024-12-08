@@ -46,6 +46,10 @@ class SyscallResolver:
                 else:
                     result.add(str1)
                     result.add(str2)
+        if len(set1) == 0:
+            return set2
+        if len(set2) == 0:
+            return set1
         return result
 
     @staticmethod
@@ -126,12 +130,7 @@ class SyscallResolver:
             elif line.startswith('__arm64_compat_sys_'):
                 crashed_syscall = line[19: line.find('+')]
                 break
-            elif line.startswith('ksys_'):
-                if '+' in line:
-                    crashed_syscall = line[5:line.find('+')]
-                else:
-                    crashed_syscall = line[5:line.find(' ')]
-                break
+
         if crashed_syscall != '':
             candidate_syscalls.add(crashed_syscall)
             if crashed_syscall in self.syscall_to_syzcall:
@@ -155,8 +154,14 @@ class SyscallResolver:
             if '.isra.' in func_name:
                 func_name = func_name[:func_name.find('.isra.')]
             if func_name in self.kernel_func_to_syscall:
-                candidate_syscalls.update(self.kernel_func_to_syscall[func_name])
-                break
+                for syscall in self.kernel_func_to_syscall[func_name]:
+                    candidate_syscalls.add(syscall)
+                    if '$' in syscall:
+                        primitive_call = syscall[:syscall.find('$')]
+                    else:
+                        primitive_call = syscall
+                    if primitive_call in self.syscall_to_syzcall:
+                        candidate_syscalls.update(self.syscall_to_syzcall[primitive_call])
 
         if len(candidate_syscalls) == 0:
             return self.parse_syscall_from_trace_manually(call_trace)
@@ -181,8 +186,14 @@ class SyscallResolver:
             if func_name in self.kernel_to_syscall_syzdirect:
                 bb_to_syscall = self.kernel_to_syscall_syzdirect[func_name]
                 for bb_id, calls in bb_to_syscall.items():
-                    candidate_syscalls.update(calls)
-                break
+                    for syscall in calls:
+                        candidate_syscalls.add(syscall)
+                        if '$' in syscall:
+                            primitive_call = syscall[:syscall.find('$')]
+                        else:
+                            primitive_call = syscall
+                        if primitive_call in self.syscall_to_syzcall:
+                            candidate_syscalls.update(self.syscall_to_syzcall[primitive_call])
 
         if len(candidate_syscalls) == 0:
             return self.parse_syscall_from_trace_manually(call_trace)
@@ -213,21 +224,21 @@ if __name__ == '__main__':
     resolver = SyscallResolver()
     call_trace = \
         """
- bpf_migrate_filter net/core/filter.c:1069 [inline]
- bpf_prepare_filter+0xb65/0x1060 net/core/filter.c:1117
- __get_filter+0x1e0/0x280 net/core/filter.c:1310
- sk_attach_filter+0x1d/0x90 net/core/filter.c:1325
- tun_attach_filter drivers/net/tun.c:2765 [inline]
- __tun_chr_ioctl+0x1198/0x4420 drivers/net/tun.c:3113
- tun_chr_ioctl+0x2a/0x40 drivers/net/tun.c:3161
- vfs_ioctl fs/ioctl.c:46 [inline]
- file_ioctl fs/ioctl.c:500 [inline]
- do_vfs_ioctl+0x1cf/0x16a0 fs/ioctl.c:684
- ksys_ioctl+0xa9/0xd0 fs/ioctl.c:701
- __do_sys_ioctl fs/ioctl.c:708 [inline]
- __se_sys_ioctl fs/ioctl.c:706 [inline]
- __x64_sys_ioctl+0x73/0xb0 fs/ioctl.c:706
- do_syscall_64+0x1b1/0x800 arch/x86/entry/common.c:287
- entry_SYSCALL_64_after_hwframe+0x49/0xbe
+__dump_stack lib/dump_stack.c:88 [inline]
+dump_stack_lvl+0xd9/0x1b0 lib/dump_stack.c:106
+print_address_description mm/kasan/report.c:364 [inline]
+print_report+0xc4/0x620 mm/kasan/report.c:475
+kasan_report+0xda/0x110 mm/kasan/report.c:588
+read_descriptors+0x27e/0x290 drivers/usb/core/sysfs.c:883
+sysfs_kf_bin_read+0x1a0/0x270 fs/sysfs/file.c:97
+kernfs_file_read_iter fs/kernfs/file.c:251 [inline]
+kernfs_fop_read_iter+0x37c/0x680 fs/kernfs/file.c:280
+call_read_iter include/linux/fs.h:1865 [inline]
+new_sync_read fs/read_write.c:389 [inline]
+vfs_read+0x4e0/0x930 fs/read_write.c:470
+ksys_read+0x12f/0x250 fs/read_write.c:613
+do_syscall_x64 arch/x86/entry/common.c:50 [inline]
+do_syscall_64+0x38/0xb0 arch/x86/entry/common.c:80
+entry_SYSCALL_64_after_hwframe+0x63/0xcd
     """
     print(resolver.parse_syscall_from_trace(call_trace))

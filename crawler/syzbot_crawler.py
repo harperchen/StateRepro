@@ -327,6 +327,7 @@ if __name__ == '__main__':
         for idx, crash in enumerate(crash_array):
             # parse call trace
             print('Processing {}/{}: {}, {}'.format(idx, len(crash_array), crash.title, crash.link))
+            print('Crash times: ', len(crash.crash_items))
 
             found_report = False
             for item in crash.crash_items:
@@ -340,22 +341,7 @@ if __name__ == '__main__':
                     continue
 
                 found_report = True
-                if dump_resolver.if_call_trace_from_syscall(item.call_trace):
-                    print()
-                    print('Found syscall related call trace', item.report_link)
-                    num_crash_syscall += 1
-                    crashed_calls = syscall_resolver.parse_syscall_from_trace(item.call_trace)
-                    calibrated_calls = PoCResolver.calibrate_crashed_call_from_poc(item.syscall_names, crashed_calls)
-                    print(item.call_trace)
-                    print('Crashed Syscall:', crashed_calls)
-                    print('Calibrated Syscall: ', calibrated_calls)
-
-                    if len(crashed_calls) == 1:
-                        print('Single Crashed Syscall!!!')
-                    if len(calibrated_calls) == 1:
-                        print('Correct Infer Syscall!!!')
-                    break
-                elif dump_resolver.if_call_trace_from_forked(item.call_trace):
+                if dump_resolver.if_call_trace_from_forked(item.call_trace):
                     print('Found background thread related call trace', item.report_link)
                     num_crash_backthread += 1
                     break
@@ -367,6 +353,22 @@ if __name__ == '__main__':
                     print('Found exit to user mode related call trace', item.report_link)
                     num_crash_exiting += 1
                     break
+                elif dump_resolver.if_call_trace_from_syscall(item.call_trace):
+                    print()
+                    print('Found syscall related call trace', item.report_link)
+                    num_crash_syscall += 1
+                    crashed_calls = syscall_resolver.parse_syscall_from_trace(item.call_trace)
+                    calibrated_calls = poc_resolver.calibrate_crashed_call_from_poc(item.syscall_names, crashed_calls)
+                    print(item.call_trace)
+                    print('Crashed Syscall:', crashed_calls)
+                    print('Calibrated Syscall: ', calibrated_calls)
+
+                    if len(crashed_calls) == 1:
+                        print('Single Crashed Syscall!!!')
+                    if len(calibrated_calls) == 1:
+                        print('Correct Infer Syscall!!!')
+                    break
+
                 else:
                     print('Unknown call trace', item.report_link)
                     print(item.call_trace)
