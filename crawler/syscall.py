@@ -1,3 +1,4 @@
+import csv
 import json
 import pandas as pd
 
@@ -3684,8 +3685,26 @@ class SyscallResolver:
             return self.parse_syscall_from_trace_manually(call_trace)
         return list(candidate_syscalls)
 
+def reformat_csv():
+    # Load the CSV file, ensuring proper handling of commas within quotes
+    df = pd.read_csv('./mysyzdirect/syscall_kernel_map.csv', header=None,
+                     names=['Syscall', 'Kernelfunc'], na_values='', keep_default_na=False)
+
+    # Replace NaN values with an empty string
+    df.fillna('', inplace=True)
+
+    # Split the 'Kernelfunc' into a list, remove duplicates, and join them back with commas
+    df_grouped = df.groupby('Syscall')['Kernelfunc'].apply(
+        lambda x: ','.join(set(','.join(x).split(',')))).reset_index()
+
+    # Sort the dataframe by 'Syscall'
+    df_sorted = df_grouped.sort_values(by='Syscall')
+
+    # Output to a new CSV file, ensuring quotes are used when needed
+    df_sorted.to_csv('output.csv', index=False)
 
 if __name__ == '__main__':
+    reformat_csv()
     resolver = SyscallResolver()
     call_trace = \
         """
