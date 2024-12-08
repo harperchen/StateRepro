@@ -3596,6 +3596,9 @@ class SyscallResolver:
             if line.startswith('SyS_'):
                 crashed_syscall = line[4:line.find('+')]
                 break
+            elif line.startswith('compat_SyS_'):
+                crashed_syscall = line[11:line.find('+')]
+                break
             elif line.startswith('__x64_sys_'):
                 crashed_syscall = line[10:line.find('+')]
                 break
@@ -3686,28 +3689,21 @@ if __name__ == '__main__':
     resolver = SyscallResolver()
     call_trace = \
         """
-__dump_stack lib/dump_stack.c:77 [inline]
- dump_stack+0x172/0x1f0 lib/dump_stack.c:113
- print_address_description.constprop.0.cold+0xd4/0x30b mm/kasan/report.c:374
- __kasan_report.cold+0x1b/0x41 mm/kasan/report.c:506
- kasan_report+0x12/0x20 mm/kasan/common.c:634
- check_memory_region_inline mm/kasan/generic.c:185 [inline]
- check_memory_region+0x134/0x1a0 mm/kasan/generic.c:192
- memcpy+0x24/0x50 mm/kasan/common.c:122
- memcpy include/linux/string.h:404 [inline]
- bpf_prog_create+0xe9/0x250 net/core/filter.c:1351
- get_filter.isra.0+0x108/0x1a0 drivers/net/ppp/ppp_generic.c:572
- ppp_get_filter drivers/net/ppp/ppp_generic.c:584 [inline]
- ppp_ioctl+0x129d/0x2590 drivers/net/ppp/ppp_generic.c:801
- vfs_ioctl fs/ioctl.c:47 [inline]
- file_ioctl fs/ioctl.c:539 [inline]
- do_vfs_ioctl+0xdb6/0x13e0 fs/ioctl.c:726
- ksys_ioctl+0xab/0xd0 fs/ioctl.c:743
- __do_sys_ioctl fs/ioctl.c:750 [inline]
- __se_sys_ioctl fs/ioctl.c:748 [inline]
- __x64_sys_ioctl+0x73/0xb0 fs/ioctl.c:748
- do_syscall_64+0xfa/0x760 arch/x86/entry/common.c:290
+ bpf_migrate_filter net/core/filter.c:1069 [inline]
+ bpf_prepare_filter+0xb65/0x1060 net/core/filter.c:1117
+ __get_filter+0x1e0/0x280 net/core/filter.c:1310
+ sk_attach_filter+0x1d/0x90 net/core/filter.c:1325
+ tun_attach_filter drivers/net/tun.c:2765 [inline]
+ __tun_chr_ioctl+0x1198/0x4420 drivers/net/tun.c:3113
+ tun_chr_ioctl+0x2a/0x40 drivers/net/tun.c:3161
+ vfs_ioctl fs/ioctl.c:46 [inline]
+ file_ioctl fs/ioctl.c:500 [inline]
+ do_vfs_ioctl+0x1cf/0x16a0 fs/ioctl.c:684
+ ksys_ioctl+0xa9/0xd0 fs/ioctl.c:701
+ __do_sys_ioctl fs/ioctl.c:708 [inline]
+ __se_sys_ioctl fs/ioctl.c:706 [inline]
+ __x64_sys_ioctl+0x73/0xb0 fs/ioctl.c:706
+ do_syscall_64+0x1b1/0x800 arch/x86/entry/common.c:287
  entry_SYSCALL_64_after_hwframe+0x49/0xbe
-openat$ppp-ioctl$EVIOCGPROP-ioctl$PPPIOCSPASS
     """
     print(resolver.parse_syscall_from_trace(call_trace))
