@@ -108,6 +108,14 @@ class DumpResolver:
         """
         verify if current call trace is related to syscall execution
         """
+        if '__do_sys_exit_group' in call_trace:
+            return False
+        if 'SyS_exit_group' in call_trace:
+            return False
+        if 'prepare_exit_to_usermode' in call_trace:
+            return False
+        if 'syscall_exit_to_user_mode' in call_trace:
+            return False
         if 'do_syscall_x64' in call_trace:
             return True
         if ('do_syscall_64' in call_trace or

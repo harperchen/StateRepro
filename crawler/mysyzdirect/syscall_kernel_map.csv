@@ -80,6 +80,9 @@ bpf$BPF_PROG_GET_FD_BY_ID,bpf_prog_get_fd_by_id
 bpf$BPF_PROG_GET_NEXT_ID,bpf_obj_get_next_id
 bpf$BPF_PROG_QUERY,bpf_prog_query
 bpf$BPF_PROG_TEST_RUN,bpf_prog_test_run
+bpf$BPF_PROG_RAW_TRACEPOINT_LOAD,bpf_prog_load
+bpf$BPF_PROG_WITH_BTFID_LOAD,bpf_prog_load
+bpf$BPF_RAW_TRACEPOINT_OPEN_UNNAMED,bpf_raw_tracepoint_open
 bpf$BPF_RAW_TRACEPOINT_OPEN,bpf_raw_tracepoint_open
 bpf$BPF_TASK_FD_QUERY,bpf_task_fd_query
 bpf$ENABLE_STATS,bpf_enable_stats
@@ -3209,4 +3212,7 @@ syz_mount_image$bcachefs,bch2_fs_get_tree
 sendfile,do_sendfile
 sendfile64,do_sendfile
 read,ksys_read
+lseek,ksys_lseek
 umount2,ksys_umount
+listxattr,path_listxattr
+llistxattr,path_listxattr

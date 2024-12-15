@@ -82,6 +82,68 @@ class SyscallResolver:
 
         return result
 
+    """
+    syscall1 involves syscall2?
+    """
+    def if_one_call_involve_another(self, syscall1: str, syscall2: str) -> bool:
+        if '$' in syscall2:
+            primitive_syscall2 = syscall2[:syscall2.find('$')]
+        else:
+            primitive_syscall2 = syscall2
+
+        if '$' in syscall1:
+            primitive_syscall1 = syscall1[:syscall1.find('$')]
+        else:
+            primitive_syscall1 = syscall1
+
+        if primitive_syscall2 not in self.syscall_to_syzcall:
+            return False
+
+        if primitive_syscall1 not in self.syscall_to_syzcall[primitive_syscall2]:
+            return False
+
+        return True
+
+    """
+    Given two syscall, compute their match score
+    """
+    def compute_match_score(self, syscall1: str, syscall2: str) -> float:
+        if syscall1 == syscall2:
+            return 1
+
+        if '$' in syscall1 and '$' not in syscall2:
+            primitive_call1 = syscall1[:syscall1.find('$')]
+            if primitive_call1 == syscall2:
+                return 0.5
+            elif self.if_one_call_involve_another(primitive_call1, syscall2):
+                return 0.3
+            else:
+                return 0
+        elif '$' not in syscall1 and '$' in syscall2:
+            primitive_call2 = syscall2[:syscall2.find('$')]
+            if primitive_call2 == syscall1:
+                return 0.5
+            elif self.if_one_call_involve_another(syscall1, primitive_call2):
+                return 0.3
+            else:
+                return 0
+
+        elif '$' in syscall1 and '$' in syscall2:
+            primitive_call1 = syscall1[:syscall1.find('$')]
+            primitive_call2 = syscall2[:syscall2.find('$')]
+
+            if primitive_call1 != primitive_call2:
+                if self.if_one_call_involve_another(primitive_call1, primitive_call2):
+                    return 0.3
+                else:
+                    return 0
+            else:
+                return 0.5
+        else:
+            if self.if_one_call_involve_another(syscall1, syscall2):
+                return 0.3
+            else:
+                return 0
 
     def parse_syscall_from_trace(self, call_trace: str, precise=True) -> []:
         potential_calls = set()
@@ -223,22 +285,6 @@ if __name__ == '__main__':
     # reformat_csv()
     resolver = SyscallResolver()
     call_trace = \
-        """
-__dump_stack lib/dump_stack.c:88 [inline]
-dump_stack_lvl+0xd9/0x1b0 lib/dump_stack.c:106
-print_address_description mm/kasan/report.c:364 [inline]
-print_report+0xc4/0x620 mm/kasan/report.c:475
-kasan_report+0xda/0x110 mm/kasan/report.c:588
-read_descriptors+0x27e/0x290 drivers/usb/core/sysfs.c:883
-sysfs_kf_bin_read+0x1a0/0x270 fs/sysfs/file.c:97
-kernfs_file_read_iter fs/kernfs/file.c:251 [inline]
-kernfs_fop_read_iter+0x37c/0x680 fs/kernfs/file.c:280
-call_read_iter include/linux/fs.h:1865 [inline]
-new_sync_read fs/read_write.c:389 [inline]
-vfs_read+0x4e0/0x930 fs/read_write.c:470
-ksys_read+0x12f/0x250 fs/read_write.c:613
-do_syscall_x64 arch/x86/entry/common.c:50 [inline]
-do_syscall_64+0x38/0xb0 arch/x86/entry/common.c:80
-entry_SYSCALL_64_after_hwframe+0x63/0xcd
+        """add_new_free_space+0x290/0x294 fs/btrfs/block-group.c:537\nbtrfs_make_block_group+0x34c/0x87c fs/btrfs/block-group.c:2712\ncreate_chunk fs/btrfs/volumes.c:5441 [inline]\nbtrfs_create_chunk+0x142c/0x1ea4 fs/btrfs/volumes.c:5527\ndo_chunk_alloc fs/btrfs/block-group.c:3710 [inline]\nbtrfs_chunk_alloc+0x69c/0xf00 fs/btrfs/block-group.c:4004\nfind_free_extent_update_loop fs/btrfs/extent-tree.c:4024 [inline]\nfind_free_extent+0x43bc/0x5334 fs/btrfs/extent-tree.c:4407\nbtrfs_reserve_extent+0x35c/0x674 fs/btrfs/extent-tree.c:4500\n__btrfs_prealloc_file_range+0x2a8/0x1000 fs/btrfs/inode.c:9594\nbtrfs_prealloc_file_range+0x60/0x7c fs/btrfs/inode.c:9688\nbtrfs_fallocate+0x1644/0x19e4 fs/btrfs/file.c:3177\nvfs_fallocate+0x478/0x5b4 fs/open.c:324\nksys_fallocate fs/open.c:347 [inline]\n__do_sys_fallocate fs/open.c:355 [inline]\n__se_sys_fallocate fs/open.c:353 [inline]\n__arm64_sys_fallocate+0xc0/0x110 fs/open.c:353\n__invoke_syscall arch/arm64/kernel/syscall.c:38 [inline]\ninvoke_syscall+0x98/0x2c0 arch/arm64/kernel/syscall.c:52\nel0_svc_common+0x138/0x258 arch/arm64/kernel/syscall.c:142\ndo_el0_svc+0x64/0x198 arch/arm64/kernel/syscall.c:193\nel0_svc+0x4c/0x15c arch/arm64/kernel/entry-common.c:637\nel0t_64_sync_handler+0x84/0xf0 arch/arm64/kernel/entry-common.c:655\nel0t_64_sync+0x190/0x194 arch/arm64/kernel/entry.S:591
     """
     print(resolver.parse_syscall_from_trace(call_trace))
