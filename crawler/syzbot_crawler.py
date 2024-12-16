@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import requests
 
+from utils import *
 from syscall_resolver import *
 from dump_resolver import *
 
@@ -11,6 +12,9 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
+
+dump_resolver = DumpResolver()
+syscall_resolver = SyscallResolver()
 
 
 class ReportCrawler:
@@ -37,27 +41,32 @@ class ReportCrawler:
         self.crash_syscalls: List[str] = []
         self.calibrate_crash_syscalls: List[str] = []
 
-    def parse_dump(self, report_cell):
+    def parse_dump(self, report_link: str):
         """
         parse crash report from url
         """
-        if report_cell.find('a') is not None:
-            report_link = "https://syzkaller.appspot.com" + report_cell.find('a')['href']
-            time.sleep(1)
-            session = requests.Session()
-            retry = Retry(connect=3, backoff_factor=0.5)
-            adapter = HTTPAdapter(max_retries=retry)
-            session.mount('http://', adapter)
-            session.mount('https://', adapter)
+        time.sleep(1)
+        session = requests.Session()
+        retry = Retry(connect=3, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
 
-            response = session.get(report_link)
-            report_data = response.text
-            if '------------[ cut here ]------------' in report_data:
-                idx = report_data.find('------------[ cut here ]------------')
-                report_data = report_data[idx:]
+        response = session.get(report_link)
+        report_data = response.text
+        if '------------[ cut here ]------------' in report_data:
+            idx = report_data.find('------------[ cut here ]------------')
+            report_data = report_data[idx:]
 
-            self.report_link = report_link
-            self.report = report_data
+        self.report_link = report_link
+        self.report = report_data
+
+        self.call_trace = dump_resolver.parse_call_trace(self.report)
+        if dump_resolver.if_call_trace_from_syscall(self.call_trace):
+            self.crash_syscalls.extend(syscall_resolver.parse_syscall_from_trace(self.call_trace))
+            if len(self.crash_syscalls) == 0:
+                print('!!! Warning: cannot resolve crashed syscall')
+                print(self.call_trace)
 
     def parse_console_log(self, console_cell):
         """
@@ -65,7 +74,7 @@ class ReportCrawler:
         """
         console_name = console_cell.get_text().strip()
         if console_name == 'strace log':
-            console_link = ''
+            console_link = None
             console_data = None
         else:
             # TODO: currently we do not analyze console log
@@ -101,11 +110,14 @@ class ReportCrawler:
             self.console_log = ""
             return
 
-        segments = re.findall(pattern, console_data)
-        segments = [segment + console_data.split(segment, 1)[1].split('\n\n', 1)[0] + '\n\n' for segment in segments]
-
         all_executed_progs = []
-        for segment in segments:
+        for match in re.finditer(pattern, console_data):
+            segment = match.group()
+            end = match.end()
+
+            executed_prog = console_data[end:].split('\n\n', 1)[0] + '\n\n'
+            segment = segment + executed_prog
+
             syz_prog = '\n'.join(segment.split('\n')[1:-2])
             all_executed_progs.append(syz_prog)
 
@@ -134,6 +146,8 @@ class ReportCrawler:
         self.syz_repro = syz_repro_data
         self.syz_repro_link = syz_repro_link
 
+        if self.syz_repro is not None:
+            self.syscall_names = parse_sysprog(self.syz_repro)
 
 
 class CrashCrawler:
@@ -245,7 +259,9 @@ class CrashCrawler:
                 commit = cells[commit_index].get_text().strip()
                 cur_item = ReportCrawler(item_time, commit)
 
-                cur_item.parse_dump(cells[report_index])
+                if cells[report_index].find('a') is not None:
+                    report_link = "https://syzkaller.appspot.com" + cells[report_index].find('a')['href']
+                    cur_item.parse_dump(report_link)
                 cur_item.parse_console_log(cells[console_index])
                 cur_item.parse_syz_repro(cells[syz_repro_index])
 
@@ -290,6 +306,7 @@ class CrashListDecoder(json.JSONDecoder):
             return CrashCrawler(obj['title'], obj['link'], report_items, obj['subsystem'], poc_interval)
         return obj
 
+
 class MyDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
         super().__init__(object_hook=self.custom_object_hook, *args, **kwargs)
@@ -314,7 +331,8 @@ class MyDecoder(json.JSONDecoder):
                                                   syscall_names))
             return CrashCrawler(obj['title'], obj['link'], report_items, obj['subsystem'], poc_interval)
         return obj
-    
+
+
 if __name__ == '__main__':
     # parse a specific crash
-    CrashCrawler.parse_crash('https://syzkaller.appspot.com/bug?id=5270676317f74d30265abb76b7ca58b5608ca545')
+    CrashCrawler.parse_crash('https://syzkaller.appspot.com/bug?extid=e3f8d4df1e1981a97abb')

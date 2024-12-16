@@ -10,32 +10,13 @@ dump_resolver = DumpResolver()
 syscall_resolver = SyscallResolver()
 
 
-def parse_deeper(item: ReportCrawler):
-    if item.report is not None:
-        # use regex match to obtain call trace from raw dump
-        item.call_trace = dump_resolver.parse_call_trace(item.report)
-
-    if item.syz_repro is not None:
-        item.syscall_names = poc_resolver.parse_sysprog(item.syz_repro)
-
-    if item.call_trace is not None and item.syscall_names is not None:
-        if dump_resolver.if_call_trace_from_syscall(item.call_trace):
-            item.crash_syscalls.extend(syscall_resolver.parse_syscall_from_trace(item.call_trace))
-            if len(item.crash_syscalls) == 0:
-                print('Cannot resolve crashed syscall')
-                print(item.call_trace)
-            else:
-                item.calibrate_crash_syscalls = poc_resolver.calibrate_crashed_call_from_poc(item.syscall_names,
-                                                                                             item.crash_syscalls)
-
-
 if __name__ == '__main__':
     if sys.argv[1] == 'crawl':
         crash_array: List[CrashCrawler] = []
         # crawl information of all fixed crashes yet with available reproducer
         if os.path.exists('fixed_crash.json'):
             with open('fixed_crash.json', 'r') as f:
-                crash_array = json.loads(f.read(), cls=CrashListDecoder)
+                crash_array = json.loads(f.read(), cls=MyDecoder)
         else:
             crash_array = CrashCrawler.parse_syzbot_tables("fixed")
 
@@ -55,7 +36,7 @@ if __name__ == '__main__':
         crashed_when_syscalls: List[int] = []
 
         with open('fixed_crash.json', 'r') as f:
-            crash_array.extend(json.loads(f.read(), cls=CrashListDecoder))
+            crash_array.extend(json.loads(f.read(), cls=MyDecoder))
 
         num_crash_syscall = 0
         num_crash_interrupt = 0
@@ -65,7 +46,26 @@ if __name__ == '__main__':
 
         for crash in crash_array:
             for item in crash.report_items:
-                parse_deeper(item)
+                if item.report is not None:
+                    # use regex match to obtain call trace from raw dump
+                    item.call_trace = dump_resolver.parse_call_trace(item.report)
+                    item.crash_syscalls.extend(syscall_resolver.parse_syscall_from_trace(item.call_trace))
+
+                if item.syz_repro is not None:
+                    item.syscall_names = parse_sysprog(item.syz_repro)
+
+                if item.call_trace is None:
+                    continue
+                if item.syscall_names is None:
+                    continue
+                if dump_resolver.if_call_trace_from_syscall(item.call_trace):
+                    if len(item.crash_syscalls) != 0:
+                        item.calibrate_crash_syscalls = poc_resolver.calibrate_crashed_call_from_poc(
+                            item.syscall_names,
+                            item.crash_syscalls)
+                    else:
+                        print('Cannot resolve crashed syscall')
+                        print(item.call_trace)
 
         for idx, syzbot_crash in enumerate(crash_array):
             # parse call trace
@@ -139,11 +139,16 @@ if __name__ == '__main__':
             print('Processing {}/{}: {}, {}'.format(num, len(crashed_when_syscalls), crash.title, crash.link))
 
             data_directory = os.path.join('fixed_crashes', crash.link[crash.link.find('=') + 1:])
-            if os.path.exists(data_directory):
-                continue
+            if not os.path.exists(data_directory):
+                os.makedirs(data_directory)
+
+            for item in crash.report_items:
+                if item.console_log is None:
+                    item.extract_console_data()
+
             poc_resolver.extract_suspicious_seq(crash.report_items)
             json_data = json.dumps(crash, cls=CrashListEncoder, indent=4)
-            os.makedirs(data_directory)
+
             with open(os.path.join(data_directory, "crash_console.json"), "w") as file:
                 file.write(json_data)
     elif sys.argv[1] == 'guess':

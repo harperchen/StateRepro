@@ -3,10 +3,9 @@ Locate crashed syscall trace from console log based on several clue:
 1. crashed syscall name
 2. hints about previous executed syscalls
 """
-
 from syzbot_crawler import ReportCrawler
 from syscall_resolver import SyscallResolver
-from typing import List
+from utils import *
 
 syscall_resolver = SyscallResolver()
 
@@ -16,38 +15,7 @@ class PoCResolver:
         self.num_crashed_call_correct = 0
         self.num_crashed_primitive_correct = 0
 
-    def parse_sysprog(self, syz_prog: str) -> str:
-        syscall_names = []
-        for line in syz_prog.split('\n'):
-            if line.startswith('#'):
-                continue
-            idx1 = line.find('(')
-            idx2 = line.find('=')
-            if idx1 != -1:
-                if idx2 != -1 and idx2 < idx1:
-                    name = line[idx2 + 2: idx1]
-                else:
-                    name = line[:idx1]
-                syscall_names.append(name)
-        return '-'.join(syscall_names)
-
-    @staticmethod
-    def is_sub_array(array1: List[str], array2: List[str]):
-        i = 0  # Pointer for array1
-        j = 0  # Pointer for array2
-
-        while i < len(array1) and j < len(array2):
-            if array1[i].startswith(array2[j]):
-                i += 1
-            j += 1
-
-        return i == len(array1)  # Return True if all elements of array1 were found in array2
-
     def locate_crashed_sequence(self, sequence: str, crash_calls: List[str]) -> bool:
-        """
-        TODO: more fine-grained matching, currently we do not consider subsystem,
-        say, only ioctl is consider, while ioctl$XX is not considered
-        """
         sequence_syscalls = sequence.split('-')
         for syscall in crash_calls:
             if syscall in sequence_syscalls:
@@ -68,18 +36,14 @@ class PoCResolver:
 
     def find_max_seq_matching(self, arr1: List[str], arr2: List[str]):
         n, m = len(arr1), len(arr2)
-        # dp[i][j] 表示在考虑 arr1[0:i] 和 arr2[0:j] 时的最大匹配得分
         dp = [[0] * (m + 1) for _ in range(n + 1)]
 
-        # 用于回溯最优匹配
         parent = [[None] * (m + 1) for _ in range(n + 1)]
 
         for i in range(1, n + 1):
             for j in range(1, m + 1):
-                # 这里不再考虑不匹配情况，只在有分数时更新
-                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])  # 保持之前的最优值
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
 
-                # 计算匹配得分
                 score = syscall_resolver.compute_match_score(arr1[i - 1], arr2[j - 1])
                 if score > 0 and dp[i - 1][j - 1] + score > dp[i][j]:
                     dp[i][j] = dp[i - 1][j - 1] + score
@@ -90,7 +54,6 @@ class PoCResolver:
                     else:
                         parent[i][j] = (i, j - 1)
 
-        # 回溯找到匹配对
         matches = []
         i, j = n, m
         while i > 0 and j > 0:
@@ -99,7 +62,7 @@ class PoCResolver:
                 matches.append((pi, pj))
             i, j = pi, pj
 
-        matches.reverse()  # 确保匹配是从小到大的顺序
+        matches.reverse()
         return matches, dp[n][m]
 
     def calibrate_crashed_call_from_poc(self, poc: str, inferred_calls: []) -> []:
@@ -158,59 +121,72 @@ class PoCResolver:
         return list(correct_crash_syscalls)
 
     def extract_suspicious_seq(self, report_items: List[ReportCrawler]):
-        for item in report_items:
-            if item.console_log is None:
-                item.extract_console_data()
-            if item.console_log is None or len(item.console_log) == 0:
+        for item_i in report_items:
+            if item_i.console_log is None or len(item_i.console_log) == 0:
                 continue
 
             suspicious_seqs = set()
-            for executed_seq in item.console_log.split('\n\n'):
+            for idx, executed_seq in enumerate(item_i.console_log.split('\n\n')):
                 is_crash_seq = False
-                for item in report_items:
-                    if len(item.calibrate_crash_syscalls) != 0:
-                        is_crash_seq = self.locate_crashed_sequence(self.parse_sysprog(executed_seq),
-                                                                    item.calibrate_crash_syscalls)
-                    elif len(item.crash_syscalls) != 0:
-                        is_crash_seq = self.locate_crashed_sequence(self.parse_sysprog(executed_seq),
-                                                                    item.crash_syscalls)
+                for item_j in report_items:
+                    short_seq = parse_sysprog(executed_seq)
+                    if len(item_j.calibrate_crash_syscalls) != 0:
+                        is_crash_seq = self.locate_crashed_sequence(short_seq,
+                                                                    item_j.calibrate_crash_syscalls)
+                    elif len(item_j.crash_syscalls) != 0:
+                        is_crash_seq = self.locate_crashed_sequence(short_seq,
+                                                                    item_j.crash_syscalls)
                     else:
                         continue
 
                     if is_crash_seq:
                         break
+
                 if is_crash_seq:
                     suspicious_seqs.add(executed_seq)
 
             if len(suspicious_seqs) == 0:
-                item.console_log = ''
+                item_i.console_log = ''
             else:
-                item.console_log = '\n\n'.join(list(suspicious_seqs))
-
-            print(f'Find {len(suspicious_seqs)} in current crash console log')
+                item_i.console_log = '\n\n'.join(list(suspicious_seqs))
+            print(f'Find {len(suspicious_seqs)} in current crash console log', item_i.console_log_link)
 
     def guess_if_stateful(self, report_items: List[ReportCrawler]) -> bool:
         poc_syscall_names = []
         calibrate_syscalls = []
+        guess_crash_syscalls = []
+        """
+        We first collect all PoCs
+        """
         for item in report_items:
-            if item.syscall_names is None:
-                continue
-
             if len(item.crash_syscalls) == 0 and item.call_trace is not None:
                 item.crash_syscalls.extend(syscall_resolver.parse_syscall_from_trace(item.call_trace))
+
+            if item.syscall_names is not None:
                 item.calibrate_crash_syscalls = self.calibrate_crashed_call_from_poc(item.syscall_names,
                                                                                      item.crash_syscalls)
+            else:
+                continue
+
             if item.syscall_names in poc_syscall_names:
                 continue
 
             poc_syscall_names.append(item.syscall_names)
             calibrate_syscalls.append(item.calibrate_crash_syscalls)
+            guess_crash_syscalls.append(item.crash_syscalls)
 
         for idx, poc in enumerate(poc_syscall_names):
+            """
+            For each PoC, we exam each executed syscall sequence in log, aiming to identify those
+            which is possible to crash the kernel and is a sub-sequences of PoC, which indicates the 
+            sequence requires certain kernel state as pre-condition to trigger the crash
+            """
             print('\nPoC: ', poc)
+            print('Guessed Crashed Syscall: ', guess_crash_syscalls[idx])
             print('Calibrated Syscall: ', calibrate_syscalls[idx])
             num_potential_stateful = 0
             num_not_stateful = 0
+
             for item in report_items:
                 if item.console_log is None:
                     item.extract_console_data()
@@ -219,9 +195,11 @@ class PoCResolver:
 
                 suspicious_seqs = []
                 seq_match_scores = []
+                suspicious_short_seqs = []
+
                 for seq in item.console_log.split('\n\n'):
                     find_crashed_call = False
-                    executed_seq = self.parse_sysprog(seq).split('-')
+                    executed_seq = parse_sysprog(seq).split('-')
                     for crash_call in calibrate_syscalls[idx]:
                         if crash_call in executed_seq:
                             find_crashed_call = True
@@ -229,9 +207,15 @@ class PoCResolver:
                     if not find_crashed_call:
                         continue
 
+                    if seq in suspicious_seqs:
+                        continue
+
+                    if executed_seq in suspicious_short_seqs:
+                        continue
                     _, match_score = self.find_max_seq_matching(executed_seq, poc.split('-'))
                     seq_match_scores.append(match_score)
                     suspicious_seqs.append(seq)
+                    suspicious_short_seqs.append(executed_seq)
 
                 if len(suspicious_seqs) == 0:
                     print('!!! Cannot find any suspicious seq in console log: ', item.console_log_link)
@@ -249,10 +233,21 @@ class PoCResolver:
                                             reverse=True)  # Use reverse=True for descending order
 
                 max_score_elements = [(element, score) for element, score in sorted_paired_list if score == max_score]
-                print('- Max score is', max_score, ', potential sequences:', len(sorted_paired_list), 'in', item.console_log_link)
+                print('- Max score is', max_score, ', potential sequences:', len(sorted_paired_list), 'in',
+                      item.console_log_link)
                 num_potential_stateful += 1
-                # for element, score in max_score_elements:
-                #     print('\nscore of executed seq:', score, 'in', item.console_log_link)
-                #     print(element)
+                for element, score in max_score_elements:
+                    print('\nscore of executed seq:', score, 'in', item.console_log_link)
+                    print(element)
             print('Potential stateful', num_potential_stateful)
             print('Potential not stateful', num_not_stateful)
+
+
+if __name__ == '__main__':
+    crash_item = ReportCrawler()
+    crash_item.console_log_link = 'https://syzkaller.appspot.com/text?tag=CrashLog&x=154633c4880000'
+    crash_item.extract_console_data()
+    crash_item.parse_dump("https://syzkaller.appspot.com/text?tag=CrashReport&x=150819e4880000")
+    poc_resolver = PoCResolver()
+    poc_resolver.extract_suspicious_seq([crash_item])
+    print(crash_item.console_log)

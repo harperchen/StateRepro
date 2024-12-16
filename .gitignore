@@ -8,3 +8,4 @@
 /scripts/stretch.*
 __pycache__/
 .idea/
+fixed_crashes/
