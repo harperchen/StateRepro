@@ -3,19 +3,18 @@ import socket
 import traceback
 import time
 import os, queue
-import infra.tool_box as utilities
 
 from time import sleep
 from subprocess import Popen, PIPE, STDOUT, call
-from .network import Network
-from .error import AlternativeFunctionError
+from .connect import VMConnect
+from utils import *
 
 reboot_regx = r'reboot: machine restart'
 port_error_regx = r'Could not set up host forwarding rule'
 default_output_timer = 5
 
 
-class VMInstance(Network):
+class VMInstance(VMConnect):
     UPSTREAM = 1
 
     def __init__(self, hash_tag, tag='', work_path='/tmp/', log_name='vm.log', log_suffix="", logger=None, debug=False):
@@ -47,16 +46,16 @@ class VMInstance(Network):
         self._reboot_once = False
         self.lock = None
         log_name += log_suffix
-        self.logger = utilities.init_logger(os.path.join(work_path, log_name), debug=debug, propagate=debug)
+        self.logger = init_logger(os.path.join(work_path, log_name), debug=debug, propagate=debug)
         self.case_logger = self.logger
         self.timer = 0
-        if logger != None:
+        if logger is not None:
             self.case_logger = logger
         if tag != '':
             self.tag = tag
         self.instance = None
         self._killed = False
-        Network.__init__(self, self.case_logger, self.debug, self.debug)
+        VMConnect.__init__(self, self.case_logger, self.debug, self.debug)
 
     def log_thread(func):
         def inner(self, *args):
@@ -154,7 +153,7 @@ class VMInstance(Network):
             if self._shutdown:
                 n = 30
                 while n > 0:
-                    if self.instance.poll() == None:
+                    if self.instance.poll() is None:
                         time.sleep(1)
                         n -= 1
                     else:
@@ -202,7 +201,7 @@ class VMInstance(Network):
         self.timer = 0
         run_alternative_func = False
         error_count = 0
-        while not self.func_finished() and (self.timeout == None or self.timer < self.timeout) and booting_timer < 180:
+        while not self.func_finished() and (self.timeout is None or self.timer < self.timeout) and booting_timer < 180:
             if self.kill_qemu:
                 self.case_logger.info('Signal kill qemu received.')
                 if not self.qemu_ready:
@@ -214,7 +213,7 @@ class VMInstance(Network):
                 booting_timer += 1
             time.sleep(1)
             poll = self.instance.poll()
-            if poll != None:
+            if poll is not None:
                 if not self.qemu_ready:
                     self.kill_proc_by_port(self.port)
                     self.case_logger.error('QEMU: Error occur at booting qemu')
@@ -296,36 +295,34 @@ class VMInstance(Network):
             return False
         if type(output) == list and len(output) > 0:
             for line in output:
-                if utilities.regx_match(r'^\d+\.\d+', line):
+                if regx_match(r'^\d+\.\d+', line):
                     return True
         else:
             return False
         return False
 
-
-    def setup_upstream(self, port, image, linux, mem="4G", cpu="2", key=None, gdb_port=-1, mon_port=-1, opts=None,
+    def setup_upstream(self, port, image, mem="4G", cpu="2", key=None, gdb_port=-1, mon_port=-1, opts=None,
                        timeout=None, kasan_multi_shot=0, snapshot=True):
         # self.qemu_ready_bar = r'Debian GNU\/Linux \d+ syzkaller ttyS\d+'
         cur_opts = ["root=/dev/sda", "console=ttyS0"]
-        def_opts = ["earlyprintk=serial", \
-                    "ftrace_dump_on_oops", "rodata=n", "vsyscall=native", "net.ifnames=0", \
-                    "biosdevname=0", "kvm-intel.nested=1", \
-                    "kvm-intel.unrestricted_guest=1", "kvm-intel.vmm_exclusive=1", \
-                    "kvm-intel.fasteoi=1", "kvm-intel.ept=1", "kvm-intel.flexpriority=1", \
-                    "kvm-intel.vpid=1", "kvm-intel.emulate_invalid_guest_state=1", \
-                    "kvm-intel.eptad=1", "kvm-intel.enable_shadow_vmcs=1", "kvm-intel.pml=1", \
+        def_opts = ["earlyprintk=serial",
+                    "ftrace_dump_on_oops", "rodata=n", "vsyscall=native", "net.ifnames=0",
+                    "biosdevname=0", "kvm-intel.nested=1",
+                    "kvm-intel.unrestricted_guest=1", "kvm-intel.vmm_exclusive=1",
+                    "kvm-intel.fasteoi=1", "kvm-intel.ept=1", "kvm-intel.flexpriority=1",
+                    "kvm-intel.vpid=1", "kvm-intel.emulate_invalid_guest_state=1",
+                    "kvm-intel.eptad=1", "kvm-intel.enable_shadow_vmcs=1", "kvm-intel.pml=1",
                     "kvm-intel.enable_apicv=1", "panic_on_warn=0", "kasan_multi_shot=1"]
         self.port = port
         self.image = image
-        self.linux = linux
         self.key = key
         self.timeout = timeout
-        self.cmd_launch = ["/home/weichen/qemu/x86_64-softmmu/qemu-system-x86_64", "-m", mem, "-smp", cpu]
+        self.cmd_launch = ["qemu-system-x86_64", "-m", mem, "-smp", cpu]
         if gdb_port != -1:
             self.cmd_launch.extend(["-gdb", "tcp::{}".format(gdb_port)])
         if mon_port != -1:
             self.cmd_launch.extend(["-monitor", "tcp::{},server,nowait,nodelay".format(mon_port)])
-        if self.port != None:
+        if self.port is not None:
             self.cmd_launch.extend(
                 ["-net", "nic,model=e1000", "-net", "user,host=10.0.2.10,hostfwd=tcp::{}-:22".format(self.port)])
         self.cmd_launch.extend(
@@ -334,8 +331,8 @@ class VMInstance(Network):
         if snapshot:
             self.cmd_launch.append("-snapshot")
 
-        self.cmd_launch.extend(["-kernel", "{}/arch/x86_64/boot/bzImage".format(self.linux), "-append"])
-        if opts == None:
+        self.cmd_launch.extend(["-kernel", "/home/weichen/StateRepro/crawler/qemu/bzImage_kasan", "-append"])
+        if opts is None:
             cur_opts.extend(def_opts)
         else:
             cur_opts.extend(opts)
@@ -415,11 +412,11 @@ class VMInstance(Network):
                 except:
                     self.logger.info('bytes array \'{}\' cannot be converted to utf-8'.format(line))
                     continue
-                if utilities.regx_match(reboot_regx, line) or utilities.regx_match(port_error_regx, line):
+                if regx_match(reboot_regx, line) or regx_match(port_error_regx, line):
                     self.case_logger.error("Booting qemu-{} failed".format(self.log_name))
                 if 'Dumping ftrace buffer' in line:
                     self.dumped_ftrace = True
-                if utilities.regx_match(r'Rebooting in \d+ seconds', line):
+                if regx_match(r'Rebooting in \d+ seconds', line):
                     self.kill_qemu = True
                 self.logger.info(line)
                 self.output.append(line)

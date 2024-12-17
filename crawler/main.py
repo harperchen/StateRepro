@@ -4,6 +4,7 @@ import sys
 from syzbot_crawler import *
 from syscall_resolver import *
 from poc_resolver import *
+from reproducer import *
 
 poc_resolver = PoCResolver()
 dump_resolver = DumpResolver()
@@ -163,3 +164,6 @@ if __name__ == '__main__':
                     print('\nProcessing {}: {}, {}'.format(len(crash_array), crash.title, crash.link))
                     poc_resolver.guess_if_stateful(crash.report_items)
                     crash_array.append(crash)
+
+    elif sys.argv[1] == 'reproduce':
+        pass

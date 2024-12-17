@@ -1,0 +1,12 @@
+{
+    "kernel": {
+        "Upstream":{
+            "ssh_key":"/home/weichen/Reproducer/Images/bullseye.id_rsa",
+            "distro_name":"upstream",
+            "distro_image":"/home/weichen/Reproducer/Images/bullseye.img",
+            "type": "upstream",
+            "normal_user": "etenal",
+            "root_user": "root"
+        }
+    }
+}

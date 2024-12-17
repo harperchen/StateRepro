@@ -1,10 +1,9 @@
 import threading, queue, time
 
-from infra.tool_box import init_logger, set_timer
 from subprocess import Popen, PIPE, STDOUT
+from utils import *
 
-
-class Network:
+class VMConnect:
     def __init__(self, logger=None, debug=False, propagate=False):
         self.debug = debug
         self.pipe_output = []
