@@ -1,13 +1,11 @@
-import os, shutil
 import socket
 
-from qemu.vm import VM
-from subprocess import Popen, PIPE, STDOUT
+from reproducer.qemu.vm import VM
 from utils import *
 
 logger = logging.getLogger(__name__)
 
-class Build():
+class QemuManager():
     def __init__(self, kernel_cfg, path_case):
         self.logger = logger
         self.kernel = kernel_cfg
@@ -23,20 +21,22 @@ class Build():
         self._ssh_port = None
         self._mon_port = None
         self._gdb_port = None
-        self.prepare()
         self._setup()
 
     def log(self, msg):
         if self.logger is not None:
             self.logger.info(msg)
 
-    def prepare(self):
+    def init_logger(self, logger):
+        self.logger = logger
+
+    def prepare_img_bak(self, th_idx):
         path_image = os.path.join(self.path_case, "img")
         os.makedirs(path_image, exist_ok=True)
         if self.kernel.type == VM.DISTROS:
-            self.create_snapshot(self.kernel.distro_image, path_image, self.kernel.distro_name)
+            self.create_snapshot(self.kernel.distro_image, path_image, th_idx, self.kernel.distro_name)
         if self.kernel.type == VM.UPSTREAM:
-            self.create_snapshot(self.kernel.distro_image, path_image, self.kernel.distro_name, target_format="raw")
+            self.create_snapshot(self.kernel.distro_image, path_image, th_idx, self.kernel.distro_name, target_format="raw")
 
     def _get_unused_port(self):
         so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -61,8 +61,8 @@ class Build():
             self.path_linux = "{}/linux-{}".format(self.path_case, self.kernel.distro_name)
             self.distro_name = self.kernel.distro_name
 
-    def create_snapshot(self, src, img_dir, image_name, target_format="qcow2"):
-        dst = "{}/{}-snapshot.img".format(img_dir, image_name)
+    def create_snapshot(self, src, img_dir, image_name, th_idx, target_format="qcow2"):
+        dst = "{}/{}-snapshot{}.img".format(img_dir, image_name, str(th_idx))
         self.log("Create image {} from {}".format(dst, src))
         if os.path.isfile(dst):
             os.remove(dst)

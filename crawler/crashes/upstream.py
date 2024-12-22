@@ -3,7 +3,7 @@ import socket
 
 from errors import *
 from utils import *
-from reproducer.reproducer import Reproducer
+from reproducer.qemu_executor import QemuExecutor
 
 
 class Vendor():
@@ -181,7 +181,7 @@ class Vendor():
 
     @repro.setter
     def repro(self, value):
-        if not isinstance(value, Reproducer):
+        if not isinstance(value, QemuExecutor):
             raise TypeError("repro must be an instance of Reproducer")
         self._init = True
         self._repro = value

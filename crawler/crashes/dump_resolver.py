@@ -4,6 +4,7 @@ Obtain call trace from raw kernel crash dump
 
 import re
 
+
 class DumpResolver:
     def __init__(self):
         # kasan, kmasn, info hang
@@ -39,7 +40,6 @@ class DumpResolver:
         if "Code: " in trace:
             return None
         return m
-
 
     @staticmethod
     def produce_call_trace(report: str) -> str:

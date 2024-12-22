@@ -9,3 +9,5 @@
 __pycache__/
 .idea/
 fixed_crashes/
+data/
+qemu/

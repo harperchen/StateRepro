@@ -264,7 +264,7 @@ class SyscallResolver:
 
 def reformat_csv():
     # Load the CSV file, ensuring proper handling of commas within quotes
-    df = pd.read_csv('./mysyzdirect/syscall_kernel_map.csv', header=None,
+    df = pd.read_csv('../mysyzdirect/syscall_kernel_map.csv', header=None,
                      names=['Syscall', 'Kernelfunc'], na_values='', keep_default_na=False)
 
     # Replace NaN values with an empty string

@@ -1,12 +1,17 @@
-import re, sys, os, stat
-import requests
-from typing import List
-from subprocess import call, Popen, PIPE, STDOUT
-import logging
-import random
+import re
+import os
+import sys
+import stat
 import json
-from time import sleep
+import random
+import hashlib
+import logging
+import requests
 import datetime
+
+from time import sleep
+from typing import List
+from subprocess import *
 
 FILE_HANDLER = 0
 STREAM_HANDLER = 1
@@ -66,7 +71,7 @@ def local_command(command, cwd=None, shell=False, redir_err=False, logger=None):
                     line = line.decode("utf-8").strip('\n').strip('\r')
                 except:
                     continue
-                if logger != None:
+                if logger is not None:
                     logger.info(line)
                 out.append(line)
                 #if debug:
@@ -172,6 +177,11 @@ def syzrepro_convert_format(line):
     return res
 
 
+def hash_string(input_string):
+    hasher = hashlib.md5()
+    hasher.update(input_string.encode('utf-8'))
+    hash_string = hasher.hexdigest()
+    return hash_string
 
 def chmodX(path):
     st = os.stat(path)

@@ -104,7 +104,7 @@ class VMInstance(VMConnect):
         self.alternative_func_args = args
         self.alternative_func_output = alternative_func_output
 
-        if self.alternative_func != None and alternative_func_output == None:
+        if self.alternative_func is not None and alternative_func_output is None:
             self.alternative_func_output = queue.Queue()
 
         x = threading.Thread(target=self.monitor_execution, name="{} qemu killer".format(self.tag))

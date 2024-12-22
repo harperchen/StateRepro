@@ -1,7 +1,7 @@
 import os, logging, shutil
 
 from utils import *
-from analysis_module import AnalysisModule
+from .analysis_module import AnalysisModule
 from subprocess import Popen, PIPE, STDOUT, call
 
 cfg_template = syz_config_template = """
@@ -28,11 +28,6 @@ cfg_template = syz_config_template = """
 
 
 class SyzkallerInterface(AnalysisModule):
-    NAME = "SyzkallerInterface"
-    REPORT_START = "======================SyzkallerInterface Report======================"
-    REPORT_END = "==================================================================="
-    REPORT_NAME = "Report_SyzkallerInterface"
-    DEPENDENCY_PLUGINS = []
 
     def __init__(self):
         super().__init__()
@@ -43,14 +38,14 @@ class SyzkallerInterface(AnalysisModule):
     def check_syzkaller(func):
         def inner(self, **kwargs):
             if self.syzkaller_path == '':
-                self.case_logger.error("Can not find syzkaller")
+                self.logger.error("Can not find syzkaller")
                 return -1
             return func(self, **kwargs)
 
         return inner
 
     def check_binary(self, binary_name):
-        syzkaller_path = os.path.join(self.path_case_plugin, "gopath/src/github.com/google/syzkaller")
+        syzkaller_path = os.path.join(self.syzkaller_path, "gopath/src/github.com/google/syzkaller")
         bin_path = os.path.join(syzkaller_path, "bin")
         if self._check_binary(bin_path, binary_name):
             return True
@@ -63,7 +58,7 @@ class SyzkallerInterface(AnalysisModule):
         return False
 
     def get_binary(self, binary_name):
-        syzkaller_path = os.path.join(self.path_case_plugin, "gopath/src/github.com/google/syzkaller")
+        syzkaller_path = os.path.join(self.syzkaller_path, "gopath/src/github.com/google/syzkaller")
         bin_path = os.path.join(syzkaller_path, "bin")
         if self._check_binary(bin_path, binary_name):
             return os.path.join(bin_path, binary_name)
@@ -78,7 +73,7 @@ class SyzkallerInterface(AnalysisModule):
     def pull_syzkaller(self, commit=""):
         script_path = os.path.join(self.path_package, "plugins/syzkaller_interface/pull_syzkaller.sh")
         chmodX(script_path)
-        p = Popen([script_path, self.path_case_plugin, commit],
+        p = Popen([script_path, self.syzkaller_path, commit],
                   stderr=STDOUT,
                   stdout=PIPE)
         with p.stdout:
@@ -87,7 +82,7 @@ class SyzkallerInterface(AnalysisModule):
         if exitcode != 0:
             self.info_msg("Fail to pull syzkaller")
         else:
-            self.syzkaller_path = os.path.join(self.path_case_plugin, "gopath/src/github.com/google/syzkaller")
+            self.syzkaller_path = os.path.join(self.syzkaller_path, "gopath/src/github.com/google/syzkaller")
         return exitcode
 
     @check_syzkaller
@@ -96,7 +91,7 @@ class SyzkallerInterface(AnalysisModule):
         path_project = os.getcwd()
         my_env["PATH"] = os.path.join(path_project, "tools/goroot/bin") + ':' + my_env["PATH"]
         my_env["GOROOT"] = os.path.join(path_project, "tools/goroot/")
-        my_env["GOPATH"] = os.path.join(self.path_case_plugin, "gopath")
+        my_env["GOPATH"] = os.path.join(self.syzkaller_path, "gopath")
         my_env["GO111MODULE"] = "auto"
         self.logger.info("make generate")
         p = Popen(["make", "generate"], cwd=self.syzkaller_path, env=my_env, stdout=PIPE, stderr=STDOUT)
@@ -114,7 +109,7 @@ class SyzkallerInterface(AnalysisModule):
         path_project = os.getcwd()
         my_env["PATH"] = os.path.join(path_project, "tools/goroot/bin") + ':' + my_env["PATH"]
         my_env["GOROOT"] = os.path.join(path_project, "tools/goroot/")
-        my_env["GOPATH"] = os.path.join(self.path_case_plugin, "gopath")
+        my_env["GOPATH"] = os.path.join(self.syzkaller_path, "gopath")
         my_env["GO111MODULE"] = "auto"
         if component == None:
             self.logger.info("make TARGETARCH={} TARGETVMARCH=amd64".format(arch))
@@ -144,7 +139,7 @@ class SyzkallerInterface(AnalysisModule):
         path_project = os.getcwd()
         my_env["PATH"] = os.path.join(path_project, "tools/goroot/bin") + ':' + my_env["PATH"]
         my_env["GOROOT"] = os.path.join(path_project, "tools/goroot/")
-        my_env["GOPATH"] = os.path.join(self.path_case_plugin, "gopath")
+        my_env["GOPATH"] = os.path.join(self.syzkaller_path, "gopath")
         p = Popen(["go", "get", "github.com/gofrs/flock@v0.8.0"], cwd=self.syzkaller_path, env=my_env, stdout=PIPE,
                   stderr=STDOUT)
         with p.stdout:
@@ -173,14 +168,14 @@ class SyzkallerInterface(AnalysisModule):
             os.makedirs(os.path.join(self.syzkaller_path, "workdir"))
 
     def generate_decent_report(self, input_log, output_log):
-        syzkaller_workdir = os.path.join(self.path_case_plugin, "gopath/src/github.com/google/syzkaller/workdir")
+        syzkaller_workdir = os.path.join(self.syzkaller_path, "gopath/src/github.com/google/syzkaller/workdir")
         files = os.listdir(syzkaller_workdir)
         cfg_path = ""
         for each_file in files:
             if each_file.endswith('.cfg'):
                 cfg_path = os.path.join(syzkaller_workdir, each_file)
                 break
-        syz_logparser = os.path.join(self.path_case_plugin, "gopath/src/github.com/google/syzkaller/bin/syz-logparser")
+        syz_logparser = os.path.join(self.syzkaller_path, "gopath/src/github.com/google/syzkaller/bin/syz-logparser")
         if not os.path.isfile(syz_logparser):
             self.info_msg("Cannot find syz-logparser on current case")
             return
@@ -224,7 +219,7 @@ class SyzkallerInterface(AnalysisModule):
         self._write_to(final_report, self.REPORT_NAME)
 
     def _write_to(self, content, name):
-        file_path = "{}/{}".format(self.path_case_plugin, name)
+        file_path = "{}/{}".format(self.syzkaller_path, name)
         super()._write_to(content, file_path)
 
     def _check_binary(self, bin, binary_name):

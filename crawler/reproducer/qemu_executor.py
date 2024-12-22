@@ -1,21 +1,18 @@
-import multiprocessing
-import threading
 import queue
-from upstream import Vendor
+import threading
+import multiprocessing
 
 from strings import *
-from utils import *
-from subprocess import Popen, PIPE, call
-from qemu.vm import VM
-from build import Build
+from reproducer.qemu_manager import *
 
 qemu_output_window = 15
 
 
-class Reproducer(Build):
-    def __init__(self, kernel_cfg,  path_case):
-        Build.__init__(self, kernel_cfg, path_case)
+class QemuExecutor(QemuManager):
+    def __init__(self, kernel_cfg, path_case, logger):
+        QemuManager.__init__(self, kernel_cfg, path_case)
         self.queue = multiprocessing.Queue()
+        self.logger = logger
         self.crash_head = [r'BUG: unable to handle'
                            r'general protection fault', r'KASAN:',
                            r'BUG: kernel NULL pointer dereference']
@@ -32,19 +29,19 @@ class Reproducer(Build):
                     f.write(line + "\n")
                 f.write("\n")
 
-    def reproduce(self, func, func_args, work_dir, timeout, vm_tag="reproducer", root=True, attempt=3, **kwargs):
+    def run_func_monitor_crash(self, func, func_args, work_dir, timeout, testcase, is_cprog, cover_dir, vm_tag="reproducer", attempt=3, **kwargs):
         res = []
         trigger = False
-        ever_success = False
         remain = []
 
         i = 0
         error_attempt = 0
         while i < attempt:
-            args = {'th_index': i, 'func': func, 'args': func_args, 'root': root, 'work_dir': work_dir,
-                    'vm_tag': vm_tag + '-' + str(i), 'timeout': timeout, **kwargs}
-            x = multiprocessing.Process(target=self._reproduce, kwargs=args,
-                                        name="{}-{} trigger-{}".format(self.manager.case_hash, self.kernel.distro_name,
+            args = {'th_index': i, 'func': func, 'args': func_args, 'testcase': testcase, 'is_cprog': is_cprog,
+                    'cover_dir': cover_dir + str(i),
+                    'work_dir': work_dir, 'vm_tag': vm_tag + '-' + str(i), 'timeout': timeout, **kwargs}
+            x = multiprocessing.Process(target=self._run_and_monitor_crash, kwargs=args,
+                                        name="{}-{} trigger-{}".format(kwargs['c_hash'], self.kernel.distro_name,
                                                                        i))
             x.start()
             self.log("Start reproducing {} in process {}, args {}".format(vm_tag + '-' + str(i), x.pid, args))
@@ -74,25 +71,25 @@ class Reproducer(Build):
                 trigger = True
                 res = crashes
                 self.save_crash_log(res, self.distro_name)
-                if res == []:
+                if not res:
                     res = crashes
                 break
         if len(res) == 1 and isinstance(res[0], str):
-            self.case_logger.error(res[0])
+            self.logger.error(res[0])
             return [], trigger, remain
         return res, trigger, remain
 
-    def _reproduce(self, th_index, func, args, root, work_dir, vm_tag, timeout, **kwargs):
+    def _run_and_monitor_crash(self, th_index, func, args, testcase, is_cprog, cover_dir, work_dir, vm_tag, timeout, **kwargs):
         self.log("New Process for reproducing {}".format(vm_tag))
-        self.prepare()
+        self.prepare_img_bak(th_index)
         qemu = self.launch_qemu(tag=vm_tag, log_suffix=str(th_index), work_path=work_dir, timeout=timeout, **kwargs)
         self.log("Launched qemu {}".format(vm_tag))
 
-        self.run_qemu(qemu, self._capture_crash, th_index, work_dir, root, timeout, func, *args)
+        self.run_qemu(qemu, self._capture_crash, th_index, work_dir, testcase, is_cprog, cover_dir, timeout, func, *args)
         res = qemu.wait()
         self.log("Qemu {} exit".format(vm_tag))
         if type(res) == bool or (len(res) == 1 and qemu.qemu_fail):
-            self.case_logger.error("Error occur when reproducing {}".format(vm_tag))
+            self.logger.error("Error occur when reproducing {}".format(vm_tag))
             self.queue.put([[], False, True])
         else:
             self.queue.put(res)
@@ -107,7 +104,7 @@ class Reproducer(Build):
             res, trigger_hunted_bug = self._qemu_capture_crash(qemu)
         except Exception as e:
             self.logger.error("Exception occur when reporducing crash: {}".format(e))
-            if qemu.instance.poll() == None:
+            if qemu.instance.poll() is None:
                 qemu.instance.kill()
             res = []
             trigger_hunted_bug = False
@@ -140,7 +137,7 @@ class Reproducer(Build):
         res = []
         trigger_hunted_bug = False
         while not qemu_close:
-            if qemu.instance.poll() != None:
+            if qemu.instance.poll() is not None:
                 qemu_close = True
             out_end = len(qemu.output)
             for line in qemu.output[out_begin:]:
@@ -186,11 +183,11 @@ class Reproducer(Build):
         title = report[0]
         if boundary_regx in title:
             title = report[1]
-        if qemu.kernel.include != []:
+        if qemu.kernel.include:
             for each in qemu.kernel.include:
                 if each in title:
                     return True
-        if qemu.kernel.exclude != []:
+        if qemu.kernel.exclude:
             for each in qemu.kernel.exclude:
                 if each in title:
                     return False
@@ -228,7 +225,7 @@ class Reproducer(Build):
             pass
         return
 
-    def _capture_crash(self, qemu, th_index, work_dir, root, timeout, func, *args):
+    def _capture_crash(self, qemu, th_index, work_dir, testcase, is_cprog, cover_dir, timeout, func, *args):
         qemu_queue = queue.Queue()
         threading.Thread(target=self.warp_qemu_capture_crash, args=(qemu, qemu_queue), name="qemu_crash_capturer",
                          daemon=True).start()
@@ -239,7 +236,7 @@ class Reproducer(Build):
         """
 
         main_func_q = queue.Queue()
-        main = threading.Thread(target=self._wrap_main_func, args=(main_func_q, func, qemu, root,) + args, daemon=True)
+        main = threading.Thread(target=self._wrap_main_func, args=(main_func_q, func, qemu, testcase, is_cprog, cover_dir) + args, daemon=True)
         main.start()
 
         n = int(timeout / qemu_output_window)
@@ -281,12 +278,11 @@ class Reproducer(Build):
             self.mon_port = mon_port
         qemu = VM(kernel=self.kernel, hash_tag=c_hash, vmlinux=self.vmlinux, port=self.ssh_port,
                   gdb_port=self.gdb_port, mon_port=self.mon_port, image=self.image_path, log_name=log_name,
-                  log_suffix=log_suffix,
-                  key=self.ssh_key, timeout=timeout, debug=True, **kwargs)
+                  log_suffix=log_suffix, key=self.ssh_key, timeout=timeout, debug=True, **kwargs)
         qemu.logger.info("QEMU-{} launched.\n".format(log_suffix))
         return qemu
 
-    def run_qemu(self, qemu, func, *args):
+    def run_qemu(self, qemu: VM, func, *args):
         return qemu.run(alternative_func=func, args=(*args,))
 
     def kill_proc_by_port(self, ssh_port):
@@ -304,22 +300,3 @@ class Reproducer(Build):
                     call("kill -9 {}".format(pid), shell=True)
                     break
 
-def run_sequence_cmd(qemu):
-    qemu.command(cmds="pwd", user="root", wait=True)
-
-
-if __name__ == '__main__':
-    crash_hash = "e3f8d4df1e1981a97abb"
-    repro_dir = os.path.join("/home/weichen/StateRepro/crawler/repro_crashes", crash_hash)
-    repro = Reproducer(kernel_cfg=Vendor({'distro_image': "/home/weichen/StateRepro/crawler/qemu/bullseye.img",
-           'ssh_key': "/home/weichen/StateRepro/crawler/qemu/bullseye.id_rsa", 'ssh_port': 36777, 'root_user': "root",
-           'normal_user': "etenal", 'distro_code_name': "unknown", 'distro_version': "1.1.1", 'distro_name': "upstream",
-           'type': 'upstream'}), path_case=repro_dir)
-    qemu = repro.launch_qemu(crash_hash, tag="upstream-trace",
-                             work_path=repro_dir,
-                             log_name="qemu-upstream-0.log",
-                             timeout=300, snapshot=False)
-    qemu.run(alternative_func=run_sequence_cmd, args=())
-    done = qemu.wait()
-    qemu.kill_vm()
-    qemu.destroy()
