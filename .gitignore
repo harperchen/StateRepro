@@ -11,3 +11,4 @@ __pycache__/
 fixed_crashes/
 data/
 qemu/
+crawler/fixed_crash.json

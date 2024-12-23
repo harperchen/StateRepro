@@ -1,6 +1,6 @@
-import threading, queue, time
+import queue
+import threading
 
-from subprocess import Popen, PIPE, STDOUT
 from utils import *
 
 class VMConnect:

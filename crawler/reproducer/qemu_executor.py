@@ -1,16 +1,16 @@
+import os
+import socket
 import queue
 import threading
 import multiprocessing
-
 from strings import *
-from reproducer.qemu_manager import *
-
+from reproducer.qemu.vm import *
+from utils import *
 qemu_output_window = 15
 
 
-class QemuExecutor(QemuManager):
-    def __init__(self, kernel_cfg, path_case, logger):
-        QemuManager.__init__(self, kernel_cfg, path_case)
+class QemuExecutor:
+    def __init__(self, kernel_cfg, case_path, logger):
         self.queue = multiprocessing.Queue()
         self.logger = logger
         self.crash_head = [r'BUG: unable to handle'
@@ -22,8 +22,57 @@ class QemuExecutor(QemuManager):
                            r'Kernel panic']
         self._setup_crash_capturer()
 
+        self.logger = logger
+        self.kernel = kernel_cfg
+        self.image_path = None
+        self.vmlinux = None
+        self.ssh_key = None
+        self.distro_name = ""
+        self.case_path = case_path
+        self.path_linux = None
+        self.index = 0
+        self.root_user = None
+        self.normal_user = None
+        self._setup()
+        
+    def init_logger(self, logger):
+        self.logger = logger
+
+    def prepare_img_bak(self, path_image, th_idx):
+        if self.kernel.type == VM.DISTROS:
+            self.create_snapshot(self.kernel.distro_image, path_image, self.kernel.distro_name, th_idx)
+        if self.kernel.type == VM.UPSTREAM:
+            self.create_snapshot(self.kernel.distro_image, path_image, self.kernel.distro_name, th_idx, target_format="raw")
+
+    def get_unused_port(self):
+        so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        so.bind(('localhost', 0))
+        _, port = so.getsockname()
+        so.close()
+        return port
+
+    def _setup(self):
+        self.normal_user = self.kernel.normal_user
+        self.root_user = self.kernel.root_user
+        self.vmtype = self.kernel.type
+        if self.vmtype == VM.UPSTREAM:
+            self.ssh_key = self.kernel.ssh_key
+            self.path_linux = "{}/linux-{}".format(self.case_path, self.kernel.distro_name)
+            self.distro_name = self.kernel.distro_name
+
+    def create_snapshot(self, src, img_dir, image_name, th_idx, target_format="qcow2"):
+        self.image_path = "{}/{}-snapshot{}.img".format(img_dir, image_name, str(th_idx))
+        self.logger.info("Create image {} from {}".format(self.image_path, src))
+        if os.path.isfile(self.image_path):
+            os.remove(self.image_path)
+        cmd = ["qemu-img", "create", "-f", "qcow2", "-b", src, "-F", target_format, self.image_path]
+        p = Popen(cmd, stderr=STDOUT, stdout=PIPE)
+        exitcode = p.wait()
+        return exitcode
+
+
     def save_crash_log(self, log_msg, name):
-        with open("{}/crash_log-{}".format(self.path_case, name), "w+") as f:
+        with open("{}/crash_log-{}".format(self.case_path, name), "w+") as f:
             for each in log_msg:
                 for line in each:
                     f.write(line + "\n")
@@ -44,7 +93,7 @@ class QemuExecutor(QemuManager):
                                         name="{}-{} trigger-{}".format(kwargs['c_hash'], self.kernel.distro_name,
                                                                        i))
             x.start()
-            self.log("Start reproducing {} in process {}, args {}".format(vm_tag + '-' + str(i), x.pid, args))
+            self.logger.info("Start reproducing {} in process {}, args {}".format(vm_tag + '-' + str(i), x.pid, args))
 
             t = self.queue.get(block=True)
             if len(t) >= 3:
@@ -53,7 +102,7 @@ class QemuExecutor(QemuManager):
                 qemu_fail = t[2]
                 if len(t) > 3:
                     remain = t[3:]
-                self.log(
+                self.logger.info(
                     "Reproducing done, crashes: {}, high_risk {}, qemu_fail {}".format(crashes, high_risk, qemu_fail))
                 if qemu_fail:
                     error_attempt += 1
@@ -62,7 +111,7 @@ class QemuExecutor(QemuManager):
                     continue
             else:
                 error_attempt += 1
-                self.log("Reproducing failed, ret {}".format(t))
+                self.logger.info("Reproducing failed, ret {}".format(t))
                 if error_attempt > 3:
                     break
                 continue
@@ -80,14 +129,14 @@ class QemuExecutor(QemuManager):
         return res, trigger, remain
 
     def _run_and_monitor_crash(self, th_index, func, args, testcase, is_cprog, cover_dir, work_dir, vm_tag, timeout, **kwargs):
-        self.log("New Process for reproducing {}".format(vm_tag))
-        self.prepare_img_bak(th_index)
+        self.logger.info("New Process for reproducing {}".format(vm_tag))
+        self.prepare_img_bak(work_dir, th_index)
         qemu = self.launch_qemu(tag=vm_tag, log_suffix=str(th_index), work_path=work_dir, timeout=timeout, **kwargs)
-        self.log("Launched qemu {}".format(vm_tag))
+        self.logger.info("Launched qemu {}".format(vm_tag))
 
         self.run_qemu(qemu, self._capture_crash, th_index, work_dir, testcase, is_cprog, cover_dir, timeout, func, *args)
         res = qemu.wait()
-        self.log("Qemu {} exit".format(vm_tag))
+        self.logger.info("Qemu {} exit".format(vm_tag))
         if type(res) == bool or (len(res) == 1 and qemu.qemu_fail):
             self.logger.error("Error occur when reproducing {}".format(vm_tag))
             self.queue.put([[], False, True])
@@ -265,19 +314,19 @@ class QemuExecutor(QemuManager):
     def launch_qemu(self, c_hash=0, log_suffix="", log_name=None, timeout=None, enable_gdb=False, enable_qemu_mon=False,
                     gdb_port=None, mon_port=None, ssh_port=None, **kwargs):
         if log_name is None:
-            log_name = "qemu-{0}-{1}.log".format(c_hash, self.distro_name)
-        if ssh_port is not None:
-            self.ssh_port = ssh_port
+            log_name = "qemu-{0}-{1}.logger.info".format(c_hash, self.distro_name)
+        if ssh_port is None:
+            ssh_port = self.get_unused_port()
         if not enable_gdb:
-            self.gdb_port = -1
-        elif gdb_port is not None:
-            self.gdb_port = gdb_port
+            gdb_port = -1
+        elif gdb_port is None:
+            gdb_port = self.get_unused_port()
         if not enable_qemu_mon:
-            self.mon_port = -1
-        elif mon_port is not None:
-            self.mon_port = mon_port
-        qemu = VM(kernel=self.kernel, hash_tag=c_hash, vmlinux=self.vmlinux, port=self.ssh_port,
-                  gdb_port=self.gdb_port, mon_port=self.mon_port, image=self.image_path, log_name=log_name,
+            mon_port = -1
+        elif mon_port is None:
+            mon_port = self.get_unused_port()
+        qemu = VM(kernel=self.kernel, hash_tag=c_hash, vmlinux=self.vmlinux, port=ssh_port,
+                  gdb_port=gdb_port, mon_port=mon_port, image=self.image_path, log_name=log_name,
                   log_suffix=log_suffix, key=self.ssh_key, timeout=timeout, debug=True, **kwargs)
         qemu.logger.info("QEMU-{} launched.\n".format(log_suffix))
         return qemu

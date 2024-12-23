@@ -1,4 +1,4 @@
-from upstream import *
+from reproducer.qemu.upstream import *
 
 
 class Config:

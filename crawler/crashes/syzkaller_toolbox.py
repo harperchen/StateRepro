@@ -14,7 +14,8 @@ class SyzkallerInterface:
         self.config_path = config_path
         self.debug = True
         syz_logfile = os.path.join(self.repro_workdir, "syzkaller_log")
-        open(syz_logfile, 'w')
+        if os.path.exists(syz_logfile):
+            open(syz_logfile, 'w')
         self.logger = init_logger(syz_logfile,
                                   cus_format='%(asctime)s %(message)s',
                                   debug=self.debug, propagate=self.debug)

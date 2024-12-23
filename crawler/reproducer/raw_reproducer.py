@@ -1,14 +1,15 @@
+import os
 import time
-
+import concurrent.futures
 from crashes.crash_case import *
 from reproducer.minimize_feature import *
 
+FEATURE_LOOP_DEVICE = 1 << 0
 BUG_REPRODUCE_TIMEOUT = 5 * 60
 MAX_BUG_REPRODUCE_TIMEOUT = 4 * 60 * 60
 
 
 class RawBugReproduce():
-    FEATURE_LOOP_DEVICE = 1 << 0
 
     def __init__(self, syz_feature_mini: FeatureConfig, case: Case):
         self.bug_title = ''
@@ -27,7 +28,7 @@ class RawBugReproduce():
         output = queue.Queue()
         for distro in self.cfg.get_all_kernels():
             self.logger.info("start reproducing bugs on {}".format(distro.distro_name))
-            x = threading.Thread(target=self.reproduce_async, args=(distro, output, ),
+            x = threading.Thread(target=self.reproduce_async, args=(distro, output,),
                                  name="{} reproduce_async-{}".format(self.case_hash, distro.distro_name))
             x.start()
             time.sleep(1)
@@ -77,25 +78,50 @@ class RawBugReproduce():
         self.logger.info("Thread for {} finished".format(distro.distro_name))
         return
 
-    def raw_reproduce(self, distro, func, func_args=(), **kwargs):
-        distro.repro.init_logger(self.logger)
-        self.root_user = distro.repro.root_user
+    def raw_reproduce(self, distro: Vendor, func, func_args=(), **kwargs):
+        distro.executor.init_logger(self.logger)
+        self.root_user = distro.executor.root_user
         self.logger.info("[root] Booting {}".format(distro.distro_name))
+        
+        testcase_dir = os.path.join(self.repro_dir, "testcases")
+        triggered_once = False
+        final_results = []
+        
+        def run_testcase(testcase_dir):
+            cur_testcase_dir = os.path.join(os.path.join(self.repro_dir, "testcases", testcase_dir))
+            syz_prog = os.path.join(cur_testcase_dir, "testcase")
+            vm_log_path = os.path.join(cur_testcase_dir, "vmlog")
+            cover_path = os.path.join(cur_testcase_dir, "cover")
+            
+            return distro.executor.run_func_monitor_crash(func=func, func_args=func_args,
+                                                    is_cprog=False,
+                                                    testcase=syz_prog,
+                                                    work_dir=cur_testcase_dir,
+                                                    vm_tag=distro.distro_name,
+                                                    c_hash=self.case_hash,
+                                                    log_name=vm_log_path,
+                                                    cover_dir=cover_path,
+                                                    **kwargs)
+        # Use ThreadPoolExecutor to manage multiple test cases concurrently
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_testcase = {executor.submit(run_testcase, testcase_dir): testcase_dir
+                                for testcase_dir in os.listdir(os.path.join(self.repro_dir, "testcases"))}
 
-        # for a list of test cases, every time, we reboot the machine and execute the prog
-        for testcase_dir in os.listdir(self.repro_dir):
-            report, triggered, t = distro.repro.run_func_monitor_crash(func=func, func_args=func_args, is_cprog=False,
-                                                                       testcase=os.path.join(testcase_dir, "testcase"),
-                                                                       work_dir=self.repro_dir, vm_tag=distro.distro_name,
-                                                                       c_hash=self.case_hash, log_name=os.path.join(testcase_dir, "vmlogs"),
-                                                                       cover_dir=os.path.join(testcase_dir, "cover"),
-                                                                       **kwargs)
-            self.logger.info("{} triggered bugs: {}".format(distro.distro_name, triggered))
-            if triggered:
-                title = self._BugChecker(report)
-                self.bug_title = title
-                return triggered, t
-        return False, t
+            for future in concurrent.futures.as_completed(future_to_testcase):
+                testcase_dir = future_to_testcase[future]
+                try:
+                    report, triggered, t = future.result()
+                    if triggered:
+                        self.logger.info(f"Test case {testcase_dir} triggered bugs.")
+                        title = self._BugChecker(report)
+                        self.bug_title = title
+                        triggered_once = True
+                        final_results.append(t)
+                except Exception as exc:
+                    self.logger.error(f"Test case {testcase_dir} generated an exception: {exc}")
+                    
+        self.logger.info(f"{distro.distro_name} triggered bugs: {self.bug_title}")
+        return triggered_once, final_results
 
     def success(self):
         for key in self.results:
@@ -104,15 +130,15 @@ class RawBugReproduce():
         return False
 
 
+    def capture_kasan(self, qemu, testcase, is_cprog, cover_dir):
+        self._execute(qemu, testcase, is_cprog, cover_dir)
+        return
+    
     def _execute(self, qemu, testcase, is_cprog, cover_dir):
         if not is_cprog:
             self._execute_syz(qemu, testcase, cover_dir)
         else:
             self._run_poc(qemu, testcase, cover_dir)
-
-    def capture_kasan(self, qemu, testcase, is_cprog, cover_dir):
-        self._execute(qemu, testcase, is_cprog, cover_dir)
-        return
 
     def _execute_syz(self, qemu: VMInstance, testcase, cover_dir):
         user = self.root_user
@@ -181,17 +207,17 @@ class RawBugReproduce():
                         if m != None and len(m.groups()) > 0:
                             title = m.groups()[0]
                     if regx_match(double_free_regx, line) and not flag_double_free:
-                        self.info_msg("Double free")
+                        self.logger.info("Double free")
                         self._write_to(self.path_project, "VendorDoubleFree")
                         flag_double_free = True
                         break
                     if regx_match(kasan_write_addr_regx, line) and not flag_kasan_write:
-                        self.info_msg("KASAN MemWrite")
+                        self.logger.info("KASAN MemWrite")
                         self._write_to(self.path_project, "VendorMemWrite")
                         flag_kasan_write = True
                         break
                     if regx_match(kasan_read_addr_regx, line) and not flag_kasan_read:
-                        self.info_msg("KASAN MemRead")
+                        self.logger.info("KASAN MemRead")
                         self._write_to(self.path_project, "VendorMemRead")
                         flag_kasan_read = True
                         break

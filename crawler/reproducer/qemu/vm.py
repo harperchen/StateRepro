@@ -1,8 +1,7 @@
-import functools
 import inspect
-from .instance import VMInstance
-from .state import VMState
-
+import functools
+from reproducer.qemu.state import VMState
+from reproducer.qemu.instance import VMInstance
 
 class VM(VMState):
     DISTROS = 0
@@ -16,9 +15,9 @@ class VM(VMState):
         self._vm_instance = None
 
         self._vm_instance = VMInstance(tag=tag, work_path=work_path, log_name=log_name, log_suffix=log_suffix,
-                                       logger=logger, hash_tag=hash_tag, debug=debug)
-        self._vm_instance.setup(kernel=kernel, port=port, image=image, mem=mem, cpu=cpu, key=key,
-                                gdb_port=gdb_port, mon_port=mon_port, timeout=timeout, snapshot=snapshot)
+                                       hash_tag=hash_tag, debug=debug)
+        self._vm_instance.prepare_qemu_launch_cmd(kernel=kernel, port=port, image=image, mem=mem, cpu=cpu, key=key,
+                                                  gdb_port=gdb_port, mon_port=mon_port, timeout=timeout, snapshot=snapshot)
         if vmlinux is not None:
             self.only_instance = False
             VMState.__init__(self, vmlinux, gdb_port, arch, work_path=work_path, log_suffix=log_suffix, debug=debug)

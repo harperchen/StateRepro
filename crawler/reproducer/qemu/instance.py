@@ -17,13 +17,13 @@ default_output_timer = 5
 class VMInstance(VMConnect):
     UPSTREAM = 1
 
-    def __init__(self, hash_tag, tag='', work_path='/tmp/', log_name='vm.log', log_suffix="", logger=None, debug=False):
+    def __init__(self, hash_tag, tag='', work_path='/tmp/', log_name='vm.log', log_suffix="", debug=False):
         self.work_path = work_path
         self.port = None
         self.image = None
         self.cmd_launch = None
         self.timeout = None
-        self.case_logger = None
+        self.logger = None
         self.debug = debug
         self.logger = None
         self.tag = hash_tag
@@ -46,16 +46,13 @@ class VMInstance(VMConnect):
         self._reboot_once = False
         self.lock = None
         log_name += log_suffix
-        self.logger = init_logger(os.path.join(work_path, log_name), debug=debug, propagate=debug)
-        self.case_logger = self.logger
+        self.logger = init_logger(log_name, debug=debug, propagate=debug)
         self.timer = 0
-        if logger is not None:
-            self.case_logger = logger
         if tag != '':
             self.tag = tag
         self.instance = None
         self._killed = False
-        VMConnect.__init__(self, self.case_logger, self.debug, self.debug)
+        VMConnect.__init__(self, self.logger, self.debug, self.debug)
 
     def log_thread(func):
         def inner(self, *args):
@@ -80,12 +77,6 @@ class VMInstance(VMConnect):
         self._reboot_once = False
         self.lock = threading.Lock()
         self.alternative_func_finished = False
-
-    def setup(self, kernel, **kwargs):
-        self.kernel = kernel
-        if kernel.type == VMInstance.UPSTREAM:
-            self.setup_upstream(**kwargs)
-        return
 
     def run(self, alternative_func=None, alternative_func_output=None, args=()):
         """
@@ -203,7 +194,7 @@ class VMInstance(VMConnect):
         error_count = 0
         while not self.func_finished() and (self.timeout is None or self.timer < self.timeout) and booting_timer < 180:
             if self.kill_qemu:
-                self.case_logger.info('Signal kill qemu received.')
+                self.logger.info('Signal kill qemu received.')
                 if not self.qemu_ready:
                     self._send_return_value(False)
                 self.kill_vm()
@@ -216,16 +207,16 @@ class VMInstance(VMConnect):
             if poll is not None:
                 if not self.qemu_ready:
                     self.kill_proc_by_port(self.port)
-                    self.case_logger.error('QEMU: Error occur at booting qemu')
+                    self.logger.error('QEMU: Error occur at booting qemu')
                     if self.need_reboot():
                         if self._reboot_once:
-                            self.case_logger.debug('QEMU: Image reboot already')
+                            self.logger.debug('QEMU: Image reboot already')
                             # The image should be ready after rebooting, run instance again
                             self._enable_snapshot_in_cmd()
                             self.run(self.alternative_func, self.alternative_func_output, self.alternative_func_args)
                             return
                         self._reboot_once = True
-                        self.case_logger.error('QEMU: Upstream image need a reboot')
+                        self.logger.error('QEMU: Upstream image need a reboot')
                         break
                     self.qemu_fail = True
                 if self._output_lock.locked():
@@ -238,15 +229,15 @@ class VMInstance(VMConnect):
                 self.qemu_ready = True
                 self.timer = 0
                 time.sleep(10)
-                if self.alternative_func != None and not run_alternative_func:
+                if self.alternative_func is not None and not run_alternative_func:
                     x = threading.Thread(target=self._prepare_alternative_func,
                                          name="{} qemu call back".format(self.tag))
                     x.start()
                     run_alternative_func = True
         if run_alternative_func:
-            self.case_logger.info('Finished alternative function, kill qemu')
+            self.logger.info('Finished alternative function, kill qemu')
         if self._reboot_once and not run_alternative_func:
-            self.case_logger.debug('QEMU: Try to reboot the image')
+            self.logger.debug('QEMU: Try to reboot the image')
             # Disable snapshot and reboot the image
             self._disable_snapshot_in_cmd()
             self.kill_vm()
@@ -290,7 +281,7 @@ class VMInstance(VMConnect):
 
     def is_qemu_ready(self):
         output = self.command("uname -r", "root", wait=True, timeout=5)
-        if output == None:
+        if output is None:
             self.logger.warn("QEMU: SSH does not respond")
             return False
         if type(output) == list and len(output) > 0:
@@ -301,9 +292,10 @@ class VMInstance(VMConnect):
             return False
         return False
 
-    def setup_upstream(self, port, image, mem="4G", cpu="2", key=None, gdb_port=-1, mon_port=-1, opts=None,
-                       timeout=None, kasan_multi_shot=0, snapshot=True):
+    def prepare_qemu_launch_cmd(self, kernel, port, image, mem="4G", cpu="2", key=None, gdb_port=-1, mon_port=-1, opts=None,
+                                timeout=None, kasan_multi_shot=0, snapshot=True):
         # self.qemu_ready_bar = r'Debian GNU\/Linux \d+ syzkaller ttyS\d+'
+        self.kernel = kernel
         cur_opts = ["root=/dev/sda", "console=ttyS0"]
         def_opts = ["earlyprintk=serial",
                     "ftrace_dump_on_oops", "rodata=n", "vsyscall=native", "net.ifnames=0",
@@ -331,14 +323,13 @@ class VMInstance(VMConnect):
         if snapshot:
             self.cmd_launch.append("-snapshot")
 
-        self.cmd_launch.extend(["-kernel", "/home/weichen/StateRepro/crawler/qemu/bzImage_kasan", "-append"])
+        self.cmd_launch.extend(["-kernel", "/home/weichen/StateRepro/crawler/reproducer/qemu/bzImage_kasan", "-append"])
         if opts is None:
             cur_opts.extend(def_opts)
         else:
             cur_opts.extend(opts)
         if type(cur_opts) == list:
             self.cmd_launch.append(" ".join(cur_opts))
-        self.write_cmd_to_script(self.cmd_launch, "launch_upstream.sh", build_append=True)
         return
 
     def _disable_snapshot_in_cmd(self):
@@ -413,7 +404,7 @@ class VMInstance(VMConnect):
                     self.logger.info('bytes array \'{}\' cannot be converted to utf-8'.format(line))
                     continue
                 if regx_match(reboot_regx, line) or regx_match(port_error_regx, line):
-                    self.case_logger.error("Booting qemu-{} failed".format(self.log_name))
+                    self.logger.error("Booting qemu-{} failed".format(self.log_name))
                 if 'Dumping ftrace buffer' in line:
                     self.dumped_ftrace = True
                 if regx_match(r'Rebooting in \d+ seconds', line):

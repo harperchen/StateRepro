@@ -25,10 +25,6 @@ if __name__ == '__main__':
                 case_dir='/home/weichen/StateRepro/data/local_crashes/warning_in_dtv5100_i2c_xfer')
     poc_resolver = PoCResolver()
     poc_resolver.extract_suspicious_seq([case.report])
-    for execute_seq in case.report.executed_seqs.split('\n\n'):
-        print(execute_seq)
-        print()
-
     # poc_resolver.guess_if_stateful_static([report])
     testcases_dir = os.path.join(case.work_dir, "testcases")
     repro_testcases = case.report.prepare_repro_testcases(testcases_dir)

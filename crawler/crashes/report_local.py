@@ -72,7 +72,7 @@ class KernelReport:
         for prog in self.executed_seqs.split('\n\n'):
             prog_hash = hash_string(prog)[8:]
             prog_dir = os.path.join(repro_dir, prog_hash)
-            os.makedirs(prog_dir)
+            os.makedirs(prog_dir, exist_ok=True)
             with open(os.path.join(prog_dir, 'testcase'), 'w') as f:
                 f.write(prog)
             prog_dirs.append(prog_dir)

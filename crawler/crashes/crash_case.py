@@ -15,7 +15,7 @@ class Case:
             self.report: KernelReport = self.read_case_local()
         self.case_hash = self.report.report_hash
         self.work_dir = os.path.join(work_dir, self.case_hash)
-
+        os.makedirs(self.work_dir, exist_ok=True)
         self.syzkaller_toolbox = SyzkallerInterface(syzkaller_dir="/home/weichen/StateRepro/crawler/syzkaller",
                                                     config_path="/home/weichen/StateRepro/crawler/syzkaller/reproduce.cfg",
                                                     repro_workdir=self.work_dir)
@@ -63,7 +63,7 @@ class Case:
 
         for kernel in self.cfg.get_all_kernels():
             # prepare for a backup qemu image
-            kernel.repro = QemuExecutor(kernel_cfg=kernel, path_case=self.work_dir, logger=self.logger)
+            kernel.executor = QemuExecutor(kernel_cfg=kernel, case_path=self.work_dir, logger=self.logger)
 
     def symbolize_cover(self):
         self.syzkaller_toolbox.run_syz_cover_symbolize(self.work_dir)
