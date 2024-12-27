@@ -24,7 +24,7 @@ class QemuExecutor:
         self._setup_crash_capturer()
         
         self.vm_tag = None
-
+        self.lock = threading.Lock()
         self.logger = logger
         self.kernel = kernel_cfg
         self.image_path = None
@@ -48,10 +48,13 @@ class QemuExecutor:
             self.create_snapshot(self.kernel.distro_image, path_image, self.kernel.distro_name, th_idx, target_format="raw")
 
     def get_unused_port(self):
+        self.lock.acquire()
         so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         so.bind(('localhost', 0))
         _, port = so.getsockname()
         so.close()
+        self.logger.info("[{}] Get unused port {}".format(self.vm_tag, port))
+        self.lock.release()
         return port
 
     def _setup(self):
@@ -64,24 +67,30 @@ class QemuExecutor:
             self.distro_name = self.kernel.distro_name
 
     def create_snapshot(self, src, img_dir, image_name, th_idx, target_format="qcow2"):
+        self.lock.acquire()
         self.image_path = "{}/{}-snapshot{}.img".format(img_dir, image_name, str(th_idx))
         self.logger.info("Create image {} from {}".format(self.image_path, src))
         if os.path.isfile(self.image_path):
             os.remove(self.image_path)
         cmd = ["qemu-img", "create", "-f", "qcow2", "-b", src, "-F", target_format, self.image_path]
         p = Popen(cmd, stderr=STDOUT, stdout=PIPE)
+        output, _ = p.communicate()
         exitcode = p.wait()
+        if exitcode != 0:
+            self.logger.info("[{}] Fail to generate an image bak {}".format(self.vm_tag, self.image_path))
+            self.logger.info(output.decode('utf-8'))
+        self.lock.release()
         return exitcode
 
 
-    def save_crash_log(self, log_msg, name):
-        with open("{}/crash_log-{}".format(self.case_path, name), "w+") as f:
+    def save_crash_log(self, log_msg, workdir, name):
+        with open("{}/crash_log-{}".format(workdir, name), "w+") as f:
             for each in log_msg:
                 for line in each:
                     f.write(line + "\n")
                 f.write("\n")
 
-    def run_func_monitor_crash(self, func, func_args, work_dir, timeout, testcase, is_cprog, cover_dir, vm_tag="reproducer", attempt=3, **kwargs):
+    def run_func_monitor_crash(self, func, func_args, work_dir, timeout, testcase, is_cprog, cover_dir, vm_tag="reproducer", attempt=3, log_name="", c_hash=""):
         res = []
         trigger = False
         remain = []
@@ -92,13 +101,17 @@ class QemuExecutor:
         while i < attempt:
             args = {'th_index': i, 'func': func, 'args': func_args, 'testcase': testcase, 'is_cprog': is_cprog,
                     'cover_dir': cover_dir + str(i),
-                    'work_dir': work_dir, 'vm_tag': vm_tag + '-' + str(i), 'timeout': timeout, **kwargs}
-            x = multiprocessing.Process(target=self._run_and_monitor_crash, kwargs=args,
-                                        name="{}-{} trigger-{}".format(kwargs['c_hash'], self.kernel.distro_name,
+                    'work_dir': work_dir, 'vm_tag': vm_tag + '-' + str(i), 'timeout': timeout}
+            x = threading.Thread(target=self._run_and_monitor_crash, args=(i, func, func_args, testcase, is_cprog, cover_dir,
+                                                                           work_dir, vm_tag, timeout, log_name),
+                                        name="{}-{} trigger-{}".format(c_hash, self.kernel.distro_name,
                                                                        i))
             x.start()
-            self.logger.info("Start reproducing {} in process {}, args {}".format(vm_tag + '-' + str(i), x.pid, args))
-
+            self.logger.info("Start reproducing {} in process {}, args {}".format(vm_tag + '-' + str(i), x.name, args))
+            
+            x.join()  # Wait for process to complete
+            self.logger.info("Process {} completed successfully".format(x.name))
+        
             t = self.queue.get(block=True)
             if len(t) >= 3:
                 crashes = t[0]
@@ -123,7 +136,7 @@ class QemuExecutor:
             if not trigger and crashes != []:
                 trigger = True
                 res = crashes
-                self.save_crash_log(res, self.distro_name)
+                self.save_crash_log(res, work_dir, self.distro_name)
                 if not res:
                     res = crashes
                 break
@@ -132,10 +145,10 @@ class QemuExecutor:
             return [], trigger, remain
         return res, trigger, remain
 
-    def _run_and_monitor_crash(self, th_index, func, args, testcase, is_cprog, cover_dir, work_dir, vm_tag, timeout, **kwargs):
+    def _run_and_monitor_crash(self, th_index, func, args, testcase, is_cprog, cover_dir, work_dir, vm_tag, timeout, log_name):
         self.logger.info("New Process for reproducing {}".format(vm_tag))
         self.prepare_img_bak(work_dir, th_index)
-        qemu = self.launch_qemu(tag=vm_tag, log_suffix=str(th_index), work_path=work_dir, timeout=timeout, **kwargs)
+        qemu = self.launch_qemu(vm_tag=vm_tag, log_suffix=str(th_index), work_path=work_dir, timeout=timeout, log_name=log_name)
         self.logger.info("Launched qemu {}".format(vm_tag))
 
         self.run_qemu(qemu, self._capture_crash, th_index, work_dir, testcase, is_cprog, cover_dir, timeout, func, *args)
@@ -302,7 +315,7 @@ class QemuExecutor:
                     except queue.Empty:
                         self.logger.error("crash capturer has finished but PoC is still running ")
                         main_ret = None
-                    self.logger.info("Reproduce finished, triggered the bug")
+                    self.logger.info("Reproduce {} finished, triggered the bug".format(os.path.basename(work_dir)))
                     return [res, trigger, qemu.qemu_fail, main_ret]
             except queue.Empty:
                 if qemu.no_new_output() and not main.is_alive() and not qemu.trigger_crash:
@@ -312,11 +325,11 @@ class QemuExecutor:
         except queue.Empty:
             self.logger.error("crash capturer has finished but PoC is still running ")
             main_ret = None
-        self.logger.info("Reproduce finished, didn't trigger bug")
+        self.logger.info("Reproduce {} finished, didn't trigger bug".format(os.path.basename(work_dir)))
         return [[], False, qemu.qemu_fail, main_ret]
 
     def launch_qemu(self, c_hash=0, log_suffix="", log_name=None, timeout=None, enable_gdb=False, enable_qemu_mon=False,
-                    gdb_port=None, mon_port=None, ssh_port=None, **kwargs):
+                    gdb_port=None, mon_port=None, ssh_port=None, vm_tag="", work_path=None, logger=None):
         if log_name is None:
             log_name = "qemu-{0}-{1}.logger.info".format(c_hash, self.distro_name)
         if ssh_port is None:
@@ -331,7 +344,8 @@ class QemuExecutor:
             mon_port = self.get_unused_port()
         qemu = VM(kernel=self.kernel, hash_tag=c_hash, vmlinux=self.vmlinux, port=ssh_port,
                   gdb_port=gdb_port, mon_port=mon_port, image=self.image_path, log_name=log_name,
-                  log_suffix=log_suffix, key=self.ssh_key, timeout=timeout, debug=True, **kwargs)
+                  log_suffix=log_suffix, key=self.ssh_key, timeout=timeout, debug=True, tag=vm_tag, 
+                  work_path=work_path, logger=logger)
         qemu.logger.info("QEMU-{} launched.\n".format(log_suffix))
         return qemu
 

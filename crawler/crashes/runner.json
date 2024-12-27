@@ -5,7 +5,6 @@
             "distro_name":"upstream",
             "distro_image":"/home/weichen/StateRepro/crawler/reproducer/qemu/bullseye.img",
             "type": "upstream",
-            "normal_user": "etenal",
             "root_user": "root"
         }
     }

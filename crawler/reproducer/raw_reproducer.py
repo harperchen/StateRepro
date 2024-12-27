@@ -15,7 +15,6 @@ class RawBugReproduce():
         self.bug_title = ''
         self.root_user = None
         self.results = {}
-        self.distro_lock = threading.Lock()
         self.repro_timeout = BUG_REPRODUCE_TIMEOUT
         self.syz_feature = FeatureConfig(timeout=args.timeout, repro_attempt=args.attempt)
 
@@ -35,21 +34,22 @@ class RawBugReproduce():
         time.sleep(1)
 
         
-        [distro_name, m] = output.get(block=True)
-        ret[distro_name] = m
+        [_, m] = output.get(block=True)
+        ret = m
 
         fail_name = ""
-        for key in ret:
-            if ret[key]["triggered"]:
-                title = ret[key]["bug_title"]
-                root = ret[key]["root"]
-                if not root:
-                    str_privilege = " by normal user"
-                else:
-                    str_privilege = " by root user"
-                self.logger.info("{} triggers a bug: {} {}".format(key, title, str_privilege))
+
+        if ret["triggered"]:
+            title = ret["bug_title"]
+            root = ret["root"]
+            if not root:
+                str_privilege = " by normal user"
             else:
-                fail_name += key + " "
+                str_privilege = " by root user"
+            self.logger.info("{} triggers a bug: {} {}".format("upstream", title, str_privilege))
+        else:
+            fail_name += "upstream "
+            
         if fail_name != "":
             self.logger.info("{} fail to trigger the bug".format(fail_name))
         return True
@@ -63,15 +63,9 @@ class RawBugReproduce():
             res["triggered"] = True
             res["bug_title"] = self.bug_title
             res["root"] = True
-            success, _ = self.raw_reproduce(distro, func=self.capture_kasan, root=False,
-                                            timeout=self.repro_timeout + 100,
-                                            logger=self.logger)
-            if success:
-                res["triggered"] = True
-                res["bug_title"] = self.bug_title
-                res["root"] = False
-            self.results[distro.distro_name]['root'] = res['root']
-            self.results[distro.distro_name]['trigger'] = True
+
+            self.results['root'] = res['root']
+            self.results['trigger'] = True
             q.put([distro.distro_name, res])
             return
 
@@ -79,7 +73,7 @@ class RawBugReproduce():
         self.logger.info("Thread for {} finished".format(distro.distro_name))
         return
 
-    def raw_reproduce(self, distro: Vendor, func, func_args=(), **kwargs):
+    def raw_reproduce(self, distro: Vendor, timeout, logger, func, func_args=()):
         distro.executor.init_logger(self.logger)
         self.root_user = distro.executor.root_user
         self.logger.info("[root] Booting {}".format(distro.distro_name))
@@ -103,8 +97,8 @@ class RawBugReproduce():
                                                     log_name=vm_log_path,
                                                     cover_dir=cover_path,
                                                     attempt=1,
-                                                    **kwargs)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                                                    timeout=timeout)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             future_to_testcase = {executor.submit(run_testcase, testcase_dir): testcase_dir
                                 for testcase_dir in os.listdir(os.path.join(self.repro_dir, "testcases"))}
 
