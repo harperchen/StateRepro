@@ -22,15 +22,15 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     case = Case(args=args, index=0, work_dir="/home/weichen/StateRepro/data/repro_crashes/",
-                case_dir='/home/weichen/StateRepro/data/local_crashes/warning_in_dtv5100_i2c_xfer')
+                case_dir='/home/weichen/StateRepro/data/local_crashes/f5c2a164db829f035f5ec4b5e35a02b802bbaa6d')
+    
     poc_resolver = PoCResolver()
     poc_resolver.extract_suspicious_seq([case.report])
     # poc_resolver.guess_if_stateful_static([report])
     testcases_dir = os.path.join(case.work_dir, "testcases")
     repro_testcases = case.report.prepare_repro_testcases(testcases_dir)
 
-    feature = FeatureConfig(timeout=args.timeout, repro_attempt=args.attempt)
-    raw_bug_reproduce = RawBugReproduce(feature, case=case)
+    raw_bug_reproduce = RawBugReproduce(args, case=case)
     raw_bug_reproduce.run()
     case.symbolize_cover()
 

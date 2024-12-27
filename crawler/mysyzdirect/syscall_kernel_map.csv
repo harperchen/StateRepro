@@ -3216,3 +3216,4 @@ lseek,ksys_lseek
 umount2,ksys_umount
 listxattr,path_listxattr
 llistxattr,path_listxattr
+sendmsg$NFC_CMD_ACTIVATE_TARGET,nfc_genl_activate_target

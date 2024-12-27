@@ -1,7 +1,6 @@
 import shutil
 import traceback
 
-from crashes.config import Config
 from utils import *
 from dateutil import parser as time_parser
 from errors import *
@@ -31,7 +30,6 @@ class AnalysisModule:
         self.kernel = "upstream"
         self.case_hash = manager.case_hash
         self.case_logger = manager.logger
-        self.cfg: Config = manager.cfg
         self.path_case = manager.path_case
         self.index = manager.index
         self.debug = manager.debug
@@ -108,19 +106,6 @@ class AnalysisModule:
         self.main_logger.info("Finish {}".format(self.analyzor.NAME))
         return self._create_stamp(stamp)
 
-    def null_results(self):
-        plugin = self.cfg.get_plugin(self.analyzor.NAME)
-        if plugin == None:
-            return False
-        plugin.instance.results = None
-        plugin.instance.finish = False
-
-    def plugin_finished(self, plugin_name):
-        plugin = self.cfg.get_plugin(plugin_name)
-        if plugin == None:
-            return False
-        return plugin.instance.finish
-
     def plugin_capable(self, plugin_name):
         return self.manager.module_capable(plugin_name)
 
@@ -188,19 +173,6 @@ class AnalysisModule:
     def debug_msg(self, msg):
         self.logger.debug(msg)
 
-    def _get_analyzor_results_offline(self):
-        plugin = self.cfg.get_plugin(self.analyzor.NAME)
-        res = self._read_analyzor_results()
-        if res == None:
-            plugin.instance.finish = self._check_stamp("FINISH_" + self.analyzor.NAME.upper())
-        else:
-            plugin.instance.finish = self._check_stamp("FINISH_" + self.analyzor.NAME.upper())
-            plugin.instance.results = res
-        return
-
-    def _set_plugin_status(self, ret):
-        plugin = self.cfg.get_plugin(self.analyzor.NAME)
-        plugin.instance.finish = ret
 
     def _read_analyzor_results(self):
         plugin_path = os.path.join(self.path_case, self.analyzor.NAME)
@@ -213,18 +185,6 @@ class AnalysisModule:
             return None
         return res
 
-    def _check_dependencies_finished(self):
-        plugin = self.cfg.get_plugin(self.analyzor.NAME)
-        dependencies = self.analyzor.DEPENDENCY_PLUGINS
-        for plugin_name in dependencies:
-            plugin = self.cfg.get_plugin(plugin_name)
-            if plugin != None:
-                if not plugin.instance.finish:
-                    if plugin.dependency == "strong":
-                        self.analyzor.logger.error(
-                            "{} has a dependency {} not finished".format(self.analyzor.NAME, plugin_name))
-                        return False
-        return True
 
     def _build_plugin_folder(self):
         if os.path.exists(self.syzkaller_path):

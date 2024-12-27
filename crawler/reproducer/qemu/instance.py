@@ -330,6 +330,7 @@ class VMInstance(VMConnect):
             cur_opts.extend(opts)
         if type(cur_opts) == list:
             self.cmd_launch.append(" ".join(cur_opts))
+        self.logger.info(self.cmd_launch)
         return
 
     def _disable_snapshot_in_cmd(self):

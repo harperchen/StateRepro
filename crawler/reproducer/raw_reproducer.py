@@ -11,14 +11,15 @@ MAX_BUG_REPRODUCE_TIMEOUT = 4 * 60 * 60
 
 class RawBugReproduce():
 
-    def __init__(self, syz_feature_mini: FeatureConfig, case: Case):
+    def __init__(self, args, case: Case):
         self.bug_title = ''
         self.root_user = None
         self.results = {}
         self.distro_lock = threading.Lock()
         self.repro_timeout = BUG_REPRODUCE_TIMEOUT
-        self.syz_feature = syz_feature_mini
-        self.cfg = case.cfg
+        self.syz_feature = FeatureConfig(timeout=args.timeout, repro_attempt=args.attempt)
+
+        self.vendor = case.upstream
         self.logger = case.logger
         self.case_hash = case.case_hash
         self.repro_dir = case.work_dir
@@ -26,16 +27,16 @@ class RawBugReproduce():
     def run(self):
         ret = {}
         output = queue.Queue()
-        for distro in self.cfg.get_all_kernels():
-            self.logger.info("start reproducing bugs on {}".format(distro.distro_name))
-            x = threading.Thread(target=self.reproduce_async, args=(distro, output,),
-                                 name="{} reproduce_async-{}".format(self.case_hash, distro.distro_name))
-            x.start()
-            time.sleep(1)
+        
+        self.logger.info("start reproducing bugs on {}".format(self.vendor.distro_name))
+        x = threading.Thread(target=self.reproduce_async, args=(self.vendor, output,),
+                                name="{} reproduce_async-{}".format(self.case_hash, self.vendor.distro_name))
+        x.start()
+        time.sleep(1)
 
-        for _ in self.cfg.get_all_kernels():
-            [distro_name, m] = output.get(block=True)
-            ret[distro_name] = m
+        
+        [distro_name, m] = output.get(block=True)
+        ret[distro_name] = m
 
         fail_name = ""
         for key in ret:
@@ -97,13 +98,13 @@ class RawBugReproduce():
                                                     is_cprog=False,
                                                     testcase=syz_prog,
                                                     work_dir=cur_testcase_dir,
-                                                    vm_tag=distro.distro_name,
+                                                    vm_tag=distro.distro_name + "_" + testcase_dir,
                                                     c_hash=self.case_hash,
                                                     log_name=vm_log_path,
                                                     cover_dir=cover_path,
+                                                    attempt=1,
                                                     **kwargs)
-        # Use ThreadPoolExecutor to manage multiple test cases concurrently
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future_to_testcase = {executor.submit(run_testcase, testcase_dir): testcase_dir
                                 for testcase_dir in os.listdir(os.path.join(self.repro_dir, "testcases"))}
 
@@ -151,6 +152,13 @@ class RawBugReproduce():
         qemu.logger.info("running PoC")
         qemu.command(cmds="echo \"6\" > /proc/sys/kernel/printk", user=self.root_user, wait=True)
         cmds = self.syz_feature.make_def_syz_command(vm_testcase_file, cover=True)
+        self._execute_syz_under_feature(qemu, cmds, user, vm_testcase_file, cover_dir=cover_dir)
+        cmds = self.syz_feature.make_repeat_syz_command(vm_testcase_file, cover=True)
+        self._execute_syz_under_feature(qemu, cmds, user, vm_testcase_file, cover_dir=cover_dir + "_threaded")
+        time.sleep(5)
+        return qemu.trigger_crash
+    
+    def _execute_syz_under_feature(self, qemu: VMInstance, cmds, user, vm_testcase_file, cover_dir):
         qemu.command(cmds=cmds, user=user, wait=True, timeout=self.repro_timeout)
         out = qemu.command(cmds="ls " + vm_testcase_file + "_prog*", user=user, wait=True)
         qemu.command(cmds="killall syz-executor && killall syz-execprog", user="root", wait=True)
@@ -162,8 +170,7 @@ class RawBugReproduce():
                 continue
             cover_files.append(line)
         qemu.download(user=user, src=cover_files, dst=cover_dir, wait=True)
-        time.sleep(5)
-        return qemu.trigger_crash
+        qemu.command(cmds="rm *_prog*", user="root", wait=True)
 
     def _run_poc(self, qemu, testcase, cover_dir):
         user = self.root_user

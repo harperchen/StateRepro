@@ -3,6 +3,7 @@ import socket
 import queue
 import threading
 import multiprocessing
+import traceback
 from strings import *
 from reproducer.qemu.vm import *
 from utils import *
@@ -21,6 +22,8 @@ class QemuExecutor:
                            r'Rebooting in \d+ seconds..',
                            r'Kernel panic']
         self._setup_crash_capturer()
+        
+        self.vm_tag = None
 
         self.logger = logger
         self.kernel = kernel_cfg
@@ -85,6 +88,7 @@ class QemuExecutor:
 
         i = 0
         error_attempt = 0
+        self.vm_tag = vm_tag
         while i < attempt:
             args = {'th_index': i, 'func': func, 'args': func_args, 'testcase': testcase, 'is_cprog': is_cprog,
                     'cover_dir': cover_dir + str(i),
@@ -152,7 +156,8 @@ class QemuExecutor:
         try:
             res, trigger_hunted_bug = self._qemu_capture_crash(qemu)
         except Exception as e:
-            self.logger.error("Exception occur when reporducing crash: {}".format(e))
+            self.logger.error("Exception occur when reporducing crash in {}: {}".format(self.vm_tag, e))
+            self.logger.error(traceback.format_exc())
             if qemu.instance.poll() is None:
                 qemu.instance.kill()
             res = []
@@ -209,8 +214,7 @@ class QemuExecutor:
                     crash_flag = 1
                 if record_flag:
                     crash.append(line)
-                if (regx_match(boundary_regx, line) and record_flag) or \
-                        self._crash_end(line) or \
+                if  self._crash_end(line) or \
                         (self._crash_start(line) and crash_flag):
                     if crash_flag == 1 and crash != []:
                         if not self.crash_title_check(qemu, crash):

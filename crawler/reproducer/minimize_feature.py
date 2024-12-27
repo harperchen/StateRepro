@@ -378,6 +378,19 @@ class FeatureConfig():
             command += "-" + key + "=" + str(default_pm[key]) + " "
         command += testcase_path
         return command
+    
+    def make_repeat_syz_command(self, testcase_path: str, cover: bool):
+        command = "/tmp/syz-execprog -executor=/tmp/syz-executor "
+        # ./syz-execprog -executor=./syz-executor -arch=amd64 -sandbox=none -procs=8 -repeat=3 -threaded=true 
+        # -collide=false -cover=1 -coverfile=/syzkaller3052270408 -optional=slowdown=1:sandboxArg=0:type=qemu ./usbconnect 
+        default_pm = {"arch": "amd64", "threaded": "true",
+                      "collide": "false", "sandbox": "none",
+                      "slowdown": "1", "procs": 1, "repeat": 3,
+                      "cover": 1, "coverfile": testcase_path}
+        for key in default_pm:
+            command += "-" + key + "=" + str(default_pm[key]) + " "
+        command += testcase_path
+        return command
 
     def make_syz_command(self, text, features: list, i386: bool, repeat=None, sandbox="", root=True):
         command = "/tmp/syz-execprog -executor=/tmp/syz-executor "
